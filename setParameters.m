@@ -1,10 +1,10 @@
 parameterMat = {
-    %1=ParameterName    2=ParameterDescription      3=ParameterUnits    %4=BaseValue
-    'wellCapDecayRate'  '% of well capital that must be replaced each year'     '%'             .01 ;
+    %1=ParameterName    2=ParameterDescription      					3=ParameterUnits    %4=BaseValue		%Note source following % sign
+    'wellCapDecayRate'  '% of well capital that must be replaced each year'     '%'             .01 ; %assumption
     'maxWellCap'        'upper bound on well capital'                           '%'             1;
     'discount'          'discount factor (npv = discount^t*cv)'                 '%'             .95;
-    'gwdIntercept'      'Intercept of gw demand curve'                          '$/acre-inch'        10;
-    'gwdSlope'          'Absolute value of slope of gw demand'                  '$/ai^2'    1;
+    'gwdIntercept'      'Intercept of gw demand curve'                          '$/acre-inch'	10;
+    'gwdSlope'          'Absolute value of slope of gw demand'                  '$/ai^2'    	1;
     'electricity'       'cost per hacm per m'                                   '$/m/hacm'      1;
     'maxDepthNoCap'     'maximum depth that a no capital well can reach'        'm'             8;
     'varInvestCost'     ''                                                      '$'             1;
