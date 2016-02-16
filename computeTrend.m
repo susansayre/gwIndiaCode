@@ -15,6 +15,7 @@ function [yrsLeft,params_tau] = computeTrend(levelSeries,levelYears);
         if yrsLeft<0
             disp('It looks like you''re beyond the only possible steady state which is weird.')
             disp('I''m going to pretend this isn''t a problem and see what happens.')
+            keyboard
             tau = yrsLeft - levelYears;
             params_tau = polyfit(tau,levelSeries,order);
        elseif yrsLeft==0

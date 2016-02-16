@@ -5,19 +5,20 @@ parameterMat = {
     'discount'          'discount factor (npv = discount^t*cv)'                 '%'             .95;
     'gwdIntercept'      'Intercept of gw demand curve'                          '$/acre-inch'	10;
     'gwdSlope'          'Absolute value of slope of gw demand'                  '$/ai^2'    	1;
-    'electricity'       'cost per hacm per m'                                   '$/m/hacm'      1;
+    'electricity'       'cost per hacm per m'                                   '$/m/hacm'      .1;
     'maxDepthNoCap'     'maximum depth that a no capital well can reach'        'm'             8;
-    'varInvestCost'     ''                                                      '$'             1;
+    'varInvestCost'     ''                                                      '$'             100;
     'fixedInvestCost'   ''                                                      '$'             0;
-    'landHeight'        'Initial Surface Level'                                 'm'             500;
+    'landHeight'        'Initial Surface Level'                                 'm'             200;
     'initialLift'       'Initial m of pumping'                                  'm'             5;
     'bottom'            'Aquifer bottom'                                        'm'             0;
     'inflow'            'Natural inflow per year'                               'ac-in/yr'      15.86*.08;
     'returnFlow'        'Share of applied water that percolates back'           '%'             .02;
     'AS'                'area*storativity (ha.cm released from 1 m of aquifer)' 'hacm/m'        10;
     'maxInvest'         'max investment possible in one year'                   '$'             .1;
-    'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             -1;
+    'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             -2;
     'wellCap0'          'initial well capital level'                            '$'             0;
+    'noCapLimitShare'   'share of maximum gw use possible in dug well'          '%'             .5;
     };
 
 numParams = size(parameterMat,1);
@@ -85,6 +86,7 @@ modelOpts.minT = 25; %minimum number of years forward to simulate
 modelOpts.trendPts = 4; %maximum number of point used to compute trend expectations
 modelOpts.vtol = 1; %value function convergence tolerance
 modelOpts.ttol = 1; %level trend convergence tolerance
+modelOpts.algorithm = 'funcit';
 %Loop through compStat cases
 runID.timeStamp = datestr(now,'yyyymmdd_HHMMSS');
 for ii=1:cases

@@ -27,20 +27,22 @@ function aeOutput = aeSolve(P,modelOpts)
         smax = [P.maxWellCap max(YrsLeft,modelOpts.minT)]; %we may have trouble with the maxWellCap since there is no natural max
         %create the matrix of nodes
         n = [modelOpts.capNodes min(modelOpts.yrNodes,smax(2))];
-        fspace = fundefn('cheb',n,smin,smax);
+        fspace = fundefn('spli',n,smin,smax);
         snodes = funnode(fspace);
         s = gridmake(snodes);
         
         %solve the dynamic programming model, taking future water levels as
         %deterministic
-        v = ones(size(s,1),1); x = [v v];
-        [~,s,~,x,~] = dpsolve(model,fspace,s,v,x);
+        v = ones(size(s,1),1); x(:,P.investInd) = P.maxInvest*v; x(:,P.gwInd) = v;
+        [~,s,~,x] = dpsolve(model,fspace,s,v,x);
         pseudoState = statePath(t+1,[P.wellInd P.levelInd]);
         simulState(1,:) = statePath(t+1,[P.wellInd P.yrsInd]);
         [ssim,xsim] = dpsimul(model,simulState,1,s,x);
         npvValue = model.discount^t*optFunc('f',pseudoState,xsim(1,:,1),[],P);
-        nextState = optFunc('g',pseudoState,xsim(1,:,1),[],P);
+        thisAction = xsim(1,:,1);
+        nextState = optFunc('g',pseudoState,thisAction,[],P);
         nextLevel = nextState(1,2);
+
         aeVal = aeVal + npvValue;
         t = t+1;
         % update the information used to compute the trend. If we haven't
@@ -53,6 +55,7 @@ function aeOutput = aeSolve(P,modelOpts)
             recentLevels = [recentLevels(2:end); nextLevel];
         end
         [YrsLeft,levelParams]=computeTrend(recentLevels,recentYears);
+        controlPath(t,:) = thisAction;
         statePath(t+1,P.wellInd) = ssim(1,1,end);
         statePath(t+1,P.yrsInd) = YrsLeft;
         statePath(t+1,P.levelInd) = nextLevel;

@@ -9,8 +9,13 @@ function [out1,out2,out3] = cpFunc(flag,s,x,e,P)
 	switch flag
 	
 		case 'b'
-	        out1 = repmat([0 0],ns,1);
-            out2 = repmat([P.gwdIntercept/P.gwdSlope P.maxInvest],ns,1);
+            out1 = repmat([0 0],ns,1);
+            maxGW = P.gwdIntercept/P.gwdSlope;
+            lift = P.landHeight - gwLevels;
+            gwUBDug = (lift<=P.maxDepthNoCap)*P.noCapLimitShare*maxGW;
+            out2(:,P.gwInd) = wellCapitalLevels*maxGW+(1-wellCapitalLevels).*gwUBDug; %above this, the net benefit of gw is negative
+            out2(:,P.investInd) = P.maxInvest; 
+
 		case 'f'
 			[out1, dnb, ddnb] = netBen(gwExtractionAmts,investmentAmts,gwLevels,wellCapitalLevels,P);
             out2(:,P.investInd) = dnb.di;
