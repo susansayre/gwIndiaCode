@@ -11,7 +11,6 @@ function reOutput = reSolve(P,modelOpts,pathGuess,controlGuess)
 	model.func = 'cpFunc';
 	model.discount = P.discount;
     iter = 0;
-   % optset('dpsolve','algorithm','funcit');
     while change>modelOpts.ttol
         iter = iter + 1;
         smin = [0 0]; %both well capital and time remaining have natural minimums at 0
@@ -20,9 +19,7 @@ function reOutput = reSolve(P,modelOpts,pathGuess,controlGuess)
         n = [modelOpts.capNodes modelOpts.yrNodes];
         n = [10 10];
 		fspace = fundefn('spli',n,smin,smax);
-        %stack an extra break point at 0 years left.
-%         keyboard
-        fspace.parms{2}{1} = sort([fspace.parms{2}{1}; 0]); %won't work unless I make a different guess for the value function at the second node.
+        temp
         snodes = funnode(fspace);
         s = gridmake(snodes);
         model.params = {P};
@@ -33,7 +30,7 @@ function reOutput = reSolve(P,modelOpts,pathGuess,controlGuess)
             yrInds = max(1,length(controlGuess)-yrInds); % set the indicator to either yrs left or the max yrs left available in the control guess
             xGuess = controlGuess(yrInds,:);
         end
-        if ~exist('v'); v = ones(size(s,1),1); v(1:length(snodes{1}))=0; end;
+        if ~exist('v'); v = ones(size(s,1),1); end;
         if ~exist('xGuess')
             if ~exist('controlGuess')
                 xGuess(:,P.investInd) = P.maxInvest*v; xGuess(:,P.gwDugInd) = v; xGuess(:,P.gwBoreInd) = v;

@@ -45,7 +45,6 @@ xGuess = .9*xGuess;
 
 vGuess = feval(model.func,'f',s,xGuess,[],P);
 optset('dpsolve','algorithm','newton');
-optset('dpsolve','maxit',2000);
 
 [c,scoord,v,x,resid] = dpsolve(model,fspace,s,vGuess,xGuess);
 [levels,shares] = ndgrid(scoord{P.levelInd},scoord{P.sbInd});
@@ -70,8 +69,7 @@ figure()
 for ii=1:2; subplot(2,1,ii); plot(output.aeOut.statePath(:,ii)); end;
 
 % solve the "rational" expectations management problem
- save beforeRe
- return
+% save beforeRe
 % output.reOut = reSolve(P,modelOpts,output.aeOut.statePath(:,P.levelInd),output.aeOut.controlPath);
 
 %% compare outputs and return key results

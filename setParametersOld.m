@@ -17,8 +17,8 @@ parameterMat = {
     'shrBore0'          'initial shr in bore wells'                             '$'             0;
     'maxDepthDug'       'max depth for a dug well'                              'm'             .5;      %paper about poverty
     'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           200;      %completely made up
-    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      150;    %guess
-    'investCostSD'      'sd of investment cost'                                 '$'             60;     %guess
+    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      145;    %guess
+    'investCostSD'      'sd of investment cost'                                 '$'             70;     %guess
     };
 
 numParams = size(parameterMat,1);
@@ -40,7 +40,7 @@ end
 
 compStatParams = {
     %parameterName      %type       %inputs
-    'initialLift'   1           [.1 .2];
+    'fixedInvestCost'   1           [0 1];
     };
 
 csArray = {};
@@ -83,11 +83,10 @@ modelOpts.heightNodes = 5; %number of approximation nodes for levels
 modelOpts.capNodes = 5; %number of approximation nodes for well capital
 modelOpts.yrNodes = 5;
 modelOpts.minT = 25; %minimum number of years forward to simulate
-modelOpts.trendPts = 1; %maximum number of point used to compute trend expectations
+modelOpts.trendPts = 4; %maximum number of point used to compute trend expectations
 modelOpts.vtol = 1; %value function convergence tolerance
 modelOpts.ttol = 1; %level trend convergence tolerance
-modelOpts.algorithm = 'newton';
-modelOpts.maxit = 2000;
+modelOpts.algorithm = 'funcit';
 %Loop through compStat cases
 runID.timeStamp = datestr(now,'yyyymmdd_HHMMSS');
 for ii=1:cases
