@@ -24,7 +24,7 @@ function aeOutput = aeSolve(P,modelOpts)
         P.levelParams = levelParams;
         model.params = {P};
         smin = [0 0]; %both shrBore and time remaining have natural minimums at 0
-        smax = [1 YrsLeft]; 
+        smax = [P.landHeight YrsLeft]; 
         %create the matrix of nodes
         n = [modelOpts.capNodes modelOpts.yrNodes];
         fspace = fundefn('spli',n,smin,smax);

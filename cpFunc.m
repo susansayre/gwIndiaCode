@@ -17,7 +17,7 @@ function [out1,out2,out3] = cpFunc(flag,s,x,e,P)
         evenYears = round(yrsLeft);
         gwLevels(find(evenYears)) = P.levelPath(maxYrsLeft+1-evenYears(find(evenYears)));
     else
-        gwLevels = min(1,max(0,polyval(P.levelParams,yrsLeft)));
+        gwLevels = min(P.landHeight,max(0,polyval(P.levelParams,yrsLeft)));
     end
 
     if any(e)

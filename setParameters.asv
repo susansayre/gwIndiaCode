@@ -2,24 +2,24 @@ clear all; close all;
 parameterMat = {
     %1=ParameterName    2=ParameterDescription      					3=ParameterUnits        %4=BaseValue		%Note source following % sign
     'discount'          'discount factor (npv = discount^t*cv)'                 '%'             .95;
-    'dDugInt'           'Intercept of gw demand curve for dug wells'            '$/vol'         2;
-    'dDugSlope'         'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.2;
-    'dBoreInt'          'Intercept of gw demand curve for dug wells'            '$/vol'         1.8;
-    'dBoreSlope'        'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.1;
-    'electricity'       'cost per vol per m'                                    '$/m/vol'       .14;
+    'dDugInt'           'Intercept of gw demand curve for dug wells'            '$/vol'         100;
+    'dDugSlope'         'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	100;
+    'dBoreInt'          'Intercept of gw demand curve for dug wells'            '$/vol'         9;
+    'dBoreSlope'        'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.5;
+    'electricity'       'cost per vol per m'                                    '$/m/vol'       .7*10;
     'landHeight'        'Initial Surface Level'                                 'm'             16;
     'initialLift'       'Initial m of pumping'                                  'm'             .1*16;
     'bottom'            'Aquifer bottom'                                        'm'             0;
-    'inflow'            'Natural inflow per year'                               'vol/yr'        1;
+    'inflow'            'Natural inflow per year'                               'vol/yr'        .1;
     'returnFlow'        'Share of applied water that percolates back'           '%'             .02;
     'AS'                'area*storativity (vol released from 1 m of aquifer)'   'vol/m'         10;
-    'maxInvest'         'max investment possible in one year'                   '%'             .1;
+    'maxInvest'         'max investment possible in one year'                   '$'             .1;
     'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             -.1*16;
     'shrBore0'          'initial shr in bore wells'                             '%'             0.01;
     'maxDepthDug'       'max depth for a dug well'                              'm'             8;              %paper about poverty
-    'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           40/16;         %completely made up
-    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      30;            %guess
-    'investCostSD'      'sd of investment cost'                                 '$'             12;             %guess
+    'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           200/16;         %completely made up
+    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      150;            %guess
+    'investCostSD'      'sd of investment cost'                                 '$'             60;             %guess
     };
 
 numParams = size(parameterMat,1);

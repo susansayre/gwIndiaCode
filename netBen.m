@@ -9,7 +9,7 @@ function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,P)
     gwLevel = max(P.bottom,min(P.landHeight,gwLevel));
 	lift = P.landHeight - gwLevel;
     
-    if any(lift>1)||any(lift<0)
+    if any(lift>P.landHeight-P.bottom)||any(lift<0)
         keyboard
     end
     
