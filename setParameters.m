@@ -1,10 +1,10 @@
-clear all; close all;
+clear all; close all; dbstop if error
 parameterMat = {
     %1=ParameterName    2=ParameterDescription      					3=ParameterUnits        %4=BaseValue		%Note source following % sign
     'discount'          'discount factor (npv = discount^t*cv)'                 '%'             .95;
     'dDugInt'           'Intercept of gw demand curve for dug wells'            '$/vol'         2;
     'dDugSlope'         'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.2;
-    'dBoreInt'          'Intercept of gw demand curve for dug wells'            '$/vol'         1.8;
+    'dBoreInt'          'Intercept of gw demand curve for dug wells'            '$/vol'         3;
     'dBoreSlope'        'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.1;
     'electricity'       'cost per vol per m'                                    '$/m/vol'       .14;
     'landHeight'        'Initial Surface Level'                                 'm'             16;
@@ -12,13 +12,13 @@ parameterMat = {
     'bottom'            'Aquifer bottom'                                        'm'             0;
     'inflow'            'Natural inflow per year'                               'vol/yr'        1;
     'returnFlow'        'Share of applied water that percolates back'           '%'             .02;
-    'AS'                'area*storativity (vol released from 1 m of aquifer)'   'vol/m'         10;
+    'AS'                'area*storativity (vol released from 1 m of aquifer)'   'vol/m'         20;
     'maxInvest'         'max investment possible in one year'                   '%'             .1;
-    'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             -.1*16;
-    'shrBore0'          'initial shr in bore wells'                             '%'             0.01;
+    'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             -1.6;
+    'shrBore0'          'initial shr in bore wells'                             '%'             .01;
     'maxDepthDug'       'max depth for a dug well'                              'm'             8;              %paper about poverty
-    'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           40/16;         %completely made up
-    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      30;            %guess
+    'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           2.5;         %completely made up
+    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      15;            %guess
     'investCostSD'      'sd of investment cost'                                 '$'             12;             %guess
     };
 
@@ -80,7 +80,7 @@ csIndMat = gridmake(csInds);
 [cases,csParams] = size(csValues);
 
 %set model options that won't change across cs runs
-modelOpts.heightNodes = 10; %number of approximation nodes for levels
+modelOpts.heightNodes = 10; %number of approximation nodes for levels, save one for maxDepth Dug
 modelOpts.capNodes = 10; %number of approximation nodes for well capital
 modelOpts.yrNodes = 10;
 modelOpts.minT = 50; %minimum number of years forward to simulate
@@ -89,6 +89,7 @@ modelOpts.vtol = 1; %value function convergence tolerance
 modelOpts.ttol = 1; %level trend convergence tolerance
 modelOpts.algorithm = 'newton';
 modelOpts.maxit = 2000;
+modelOpts.icSteps = 9999;
 %Loop through compStat cases
 runID.timeStamp = datestr(now,'yyyymmdd_HHMMSS');
 for ii=1:cases

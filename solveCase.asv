@@ -54,11 +54,12 @@ nb = netBen(xGuess(:,P.gwDugInd),xGuess(:,P.gwBoreInd),xGuess(:,P.investInd),s(:
 deltaBen = nb.bore - nb.dug;
 newShr = max(s(:,P.sbInd),normcdf(deltaBen*P.discount/(1-P.discount),P.investCostMean,P.investCostSD));
 
+xGuess(:,P.investInd) = min(.5*ub(:,P.investInd),newShr-s(:,P.sbInd));
+
 xGuess = .9*xGuess;
 
 vGuess = feval(model.func,'f',s,xGuess,[],P);
-nextStateGuess = feval(model.func,'g',s,xGuess,[],P);
-xGuess(:,P.investInd) = min(.5*ub(:,P.investInd),newShr-s(:,P.sbInd));
+nextStateGuess = feval(model.func,'f',s,xGuess,[],P);
 
 optset('dpsolve','algorithm','newton');
 optset('dpsolve','maxit',2000);

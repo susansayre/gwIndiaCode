@@ -52,28 +52,28 @@ function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,P)
     highCost = min(max(norminv(newShr,P.investCostMean,P.investCostSD),-1/eps),1/eps);
     deltaCost = highCost-lowCost;
 %     
-    approxShare = repmat([0:.001:1],ns,1);
+    approxShare = repmat([0:.01:1],ns,1);
     costArray = repmat(lowCost,1,size(approxShare,2)) + repmat(deltaCost,1,size(approxShare,2)).*approxShare;
     probArray = normpdf(costArray,P.investCostMean,P.investCostSD);
     intervalIntegral = sum(costArray.*probArray,2);
-    
-%     intervalIntegral = zeros(numel(lowCost),1);
-%     for ii=1:numel(lowCost);
-%         intervalIntegral(ii) = integral(@(x) x.*normpdf(x,P.investCostMean,P.investCostSD),lowCost(ii),highCost(ii));
-%     end
-% %     
+%     
+% %     intervalIntegral = zeros(numel(lowCost),1);
+% %     for ii=1:numel(lowCost);
+% %         intervalIntegral(ii) = integral(@(x) x.*normpdf(x,P.investCostMean,P.investCostSD),lowCost(ii),highCost(ii));
+% %     end
+%     
     investCost = intervalIntegral.*invest; %expected cost conditional on being in interval
     
-    dinvestCost_dinvest = intervalIntegral + highCost.*invest;
-    ddinvestCost_ddinvest = 1./normpdf(highCost,P.investCostMean,P.investCostSD)+2*highCost;
+    dinvestCost_dinvestT = intervalIntegral + highCost.*invest;
+    ddinvestCost_ddinvestT = 1./normpdf(highCost,P.investCostMean,P.investCostSD)+highCost;
     
-%     if any(invest); keyboard; end
+    if any(invest); keyboard; end
     
 %      keyboard
 	nbDug = P.dDugInt*gwDug - P.dDugSlope/2*gwDug.^2 - costDug.*gwDug;
     nbBore = P.dBoreInt*gwBore - P.dBoreSlope/2*gwBore.^2 - costBore.*gwBore;
     
-    nb.all = nbDug.*(1-shrBore) + nbBore.*shrBore - investCost;
+    nb.all = nbDug.*(1-shrBore) + nbBore.*shrBore - investCostMat(:,2);
     nb.dug = nbDug;
     nb.bore = nbBore;
     

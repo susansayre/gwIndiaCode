@@ -1,5 +1,5 @@
-function [out1,out2,out3] = cpFunc(flag,s,x,e,P)
-	shrBore = s(:,1);
+function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P)
+	
 	investmentAmts = x(:,P.investInd);
 	gwDug = max(0,x(:,P.gwDugInd));
     gwBore = max(0,x(:,P.gwBoreInd));
