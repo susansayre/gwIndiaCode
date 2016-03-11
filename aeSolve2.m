@@ -1,12 +1,12 @@
 function aeOutput = aeSolve2(P,modelOpts)
 %solve the adaptive expectations problem as an optimal switching problem
-numYrs = 50;
-statePath(1,P.levelInd) = P.h0; 
-statePath(1,P.sbInd) = P.shrBore0;
-trendPath = P.levelTrend;
+
+% statePath(1,P.levelInd) = P.h0; 
+% statePath(1,P.sbInd) = P.shrBore0;
+% trendPath = P.levelTrend;
 
 t=1;
-change = 1;
+% change = 1;
 P.iTol = 1e-5;
 
 model.func = 'optStoppingFunc';
@@ -20,13 +20,12 @@ model.w = 1;
 
 levelPath = P.h0;
 shrBore = P.shrBore0;
-trend = P.levelTrend;
+% trend = P.levelTrend;
 valChange = 1;
 
 while valChange>P.iTol
     
     %find maxCost of farms that have already adopted.
-
     lowCost = min(max(norminv(shrBore(t),P.investCostMean,P.investCostSD),-1/eps),1/eps);
     %solve optimal stopping problem for this trend
     fspace = fundefn('spli',[10 10],[P.bottom lowCost],[P.landHeight P.investCostMean+3*P.investCostSD],[],[0;1]);
@@ -39,7 +38,7 @@ while valChange>P.iTol
     nyrs = 1;
     
     simulStates = [repmat(levelPath(t),numel(s{2}),1) s{2} 0*s{2}];
-    [spath,xpath] = dpsimul(model,simulStates,1,s,x);
+    [spath,xpath] = dpsimul(model,simulStates,nyrs,s,x);
     %find maxCost of farms that have adopted by end of period
     highCost = max(spath(:,3,2).*spath(:,2,2));
     if highCost<=lowCost

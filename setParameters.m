@@ -4,7 +4,7 @@ parameterMat = {
     'discount'          'discount factor (npv = discount^t*cv)'                 '%'             .95;
     'dDugInt'           'Intercept of gw demand curve for dug wells'            '$/vol'         2;
     'dDugSlope'         'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.2;
-    'dBoreInt'          'Intercept of gw demand curve for dug wells'            '$/vol'         3;
+    'dBoreInt'          'Intercept of gw demand curve for dug wells'            '$/vol'         1.8;
     'dBoreSlope'        'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.1;
     'electricity'       'cost per vol per m'                                    '$/m/vol'       .14;
     'landHeight'        'Initial Surface Level'                                 'm'             16;

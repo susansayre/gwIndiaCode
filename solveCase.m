@@ -86,13 +86,19 @@ xTitles = {'Investment','Water (Traditional)','Water (Modern)'};
 sTitles = {'Share in Modern Agriculture','Pumping Lift'};
 sYlabel = {'%','meters'};
 
-for ii=2:3; 
+
+% solve the "rational" expectations management problem
+ save beforeReForIWREC
+ output.reOut = reSolve(P,modelOpts);
+ 
+ for ii=2:3; 
     subplot(2,2,ii+1); 
     plot(output.aeOut.controlPath(1:50,ii)/10,'--'); 
-    hold on;  
-    plot(squeeze(xsim(1,ii,1:50))/10); 
+    hold on; 
+    plot(output.reOut.controlPath(1:50,ii)/10,'-.'); 
+    plot(output.opt.controlPath(1:50,ii)/10); 
     title(xTitles{ii});
-    legend('Common Property','Optimal Management')
+    legend('Common Property AE','Common Property RE','Optimal Management')
 end; 
 
 for ii=1:2; 
@@ -104,17 +110,14 @@ for ii=1:2;
     end
     plot(constant+slope*output.aeOut.statePath(1:50,ii),'--'); 
     hold on; 
-    plot(constant+slope*squeeze(ssim(1,ii,1:50))); 
+    plot(constant+slope*output.reOut.statePath(1:50,ii),'-.'); 
+    plot(constant+slope*output.opt.statePath(1:50,ii)); 
     title(sTitles{ii});
     ylabel(sYlabel{ii});
     legend('Common Property','Optimal Management','Location','SouthEast')
 end;
 saveas(gcf,'states','epsc')
 
-% solve the "rational" expectations management problem
- save beforeReForIWREC
-keyboard
-% output.reOut = reSolve(P,modelOpts,output.aeOut.statePath(:,P.levelInd),output.aeOut.controlPath);
 
 %% compare outputs and return key results
 
