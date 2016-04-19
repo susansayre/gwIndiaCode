@@ -4,21 +4,21 @@ parameterMat = {
     'discount'          'discount factor (npv = discount^t*cv)'                 '%'             .95;
     'dDugInt'           'Intercept of gw demand curve for dug wells'            '$/vol'         2;
     'dDugSlope'         'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.2;
-    'dBoreInt'          'Intercept of gw demand curve for dug wells'            '$/vol'         1.8;
-    'dBoreSlope'        'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.1;
-    'electricity'       'cost per vol per m'                                    '$/m/vol'       .14;
-    'landHeight'        'Initial Surface Level'                                 'm'             16;
+    'dBoreInt'          'Intercept of gw demand curve for bore wells'            '$/vol'         1.8;
+    'dBoreSlope'        'Absolute value of slope of gw demand for bore wells'    '$/vol^2'    	.1;
+    'electricity'       'cost per vol per m'                                    '$/m/vol'       .1;
+    'landHeight'        'Initial Surface Level'                                 'm'             20;
     'initialLift'       'Initial m of pumping'                                  'm'             .1*16;
     'bottom'            'Aquifer bottom'                                        'm'             0;
     'inflow'            'Natural inflow per year'                               'vol/yr'        1;
     'returnFlow'        'Share of applied water that percolates back'           '%'             .02;
     'AS'                'area*storativity (vol released from 1 m of aquifer)'   'vol/m'         20;
     'maxInvest'         'max investment possible in one year'                   '%'             .1;
-    'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             -1.6;
+    'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             -1;
     'shrBore0'          'initial shr in bore wells'                             '%'             .01;
     'maxDepthDug'       'max depth for a dug well'                              'm'             8;              %paper about poverty
-    'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           2.5;         %completely made up
-    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      15;            %guess
+    'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           1;         %completely made up
+    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      30;            %guess
     'investCostSD'      'sd of investment cost'                                 '$'             12;             %guess
     };
 
@@ -41,34 +41,33 @@ end
 
 compStatParams = {
     %parameterName      %type       %inputs
-    'initialLift'   3           [1 2];
+%    'initialLift'   3           [1 2];
+    'dBoreInt'      3           [1];
     };
 
-csArray = {};
-csInds = {};
 numCompStatParams = size(compStatParams,1);
 for ii=1:numCompStatParams
     switch compStatParams{ii,2}
         case 1
-            csArray = {csArray,compStatParams{ii,3}};
-            csInds = {csInds,1:numel(compStatParams)};
+            csArray{ii} = compStatParams{ii,3}';
+            csInds{ii} =(1:numel(compStatParams{ii,3}))';
         case 2
             min = compStatParams{ii,3}(1);
             max = compStatParams{ii,3}(2);
             step = (max-min)/(compStatParams{ii,3}(3)-1);
-            csArray = {csArray,min:step:max};
-            csInds = {csInds,1:compStatParams{ii,3}};
+            csArray{ii} = (min:step:max)';
+            csInds{ii} = (1:numel(csArray{ii}))';
         case 3
             eval(['baseValue = P.' compStatParams{ii,1} ';'])
-            csArray = {csArray,compStatParams{ii,3}*baseValue};
-            csInds = {csInds,1:numel(compStatParams)};
+            csArray{ii} = (compStatParams{ii,3}*baseValue)';
+            csInds{ii} = (1:numel(compStatParams{ii,3}))';
         case 4
             eval(['baseValue = P.' compStatParams{ii,1} ';'])
             min = compStatParams{ii,3}(1);
             max = compStatParams{ii,3}(2);
             step = (max-min)/(compStatParams{ii,3}(3)-1);
-            csArray = {csArray,(min:step:max)*baseValue};
-            csInds = {csInds,1:compStatParams{ii,3}};
+            csArray{ii} = (min:step:max)'*baseValue;
+            csInds{ii} = (1:numel(csArray{ii}))';
         otherwise
             error(['I don''t know case ' compStatParams{ii,2}])
     end
@@ -80,9 +79,9 @@ csIndMat = gridmake(csInds);
 [cases,csParams] = size(csValues);
 
 %set model options that won't change across cs runs
-modelOpts.heightNodes = 10; %number of approximation nodes for levels, save one for maxDepth Dug
-modelOpts.capNodes = 10; %number of approximation nodes for well capital
-modelOpts.yrNodes = 10;
+modelOpts.heightNodes = 25; %number of approximation nodes for levels, save one for maxDepth Dug
+modelOpts.capNodes = 25; %number of approximation nodes for well capital
+%modelOpts.yrNodes = 10;
 modelOpts.minT = 50; %minimum number of years forward to simulate
 modelOpts.trendPts = 1; %maximum number of point used to compute trend expectations
 modelOpts.vtol = 1; %value function convergence tolerance

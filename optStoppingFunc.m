@@ -1,6 +1,6 @@
 function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P)
 	
-%states are water levels, cost, and type
+%states are water levels, percentile rank among farms, and type
 %actions are invest (x=1) or don't invest (x=0)
 
     ns = size(s,1);
@@ -16,7 +16,8 @@ function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P)
         case 'f'
             %return net benefits
             levels = s(:,1);
-            costs = s(:,2);
+            percCheaper = s(:,2); %state variable runs from 0 to 1 and identifies farm costs based on where in the interval the farm ranks
+            costs = min(max(norminv(percCheaper,P.investCostMean,P.investCostSD),-1/eps),1/eps);
             type = s(:,3); %0=dug, 1=bore
             
             lift = P.landHeight - levels;

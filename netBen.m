@@ -48,25 +48,34 @@ function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,P)
 %     
 % %     %investment cost by parcel is distributed normally with mean investMean
 %     %and variance investVar
-    lowCost = min(max(norminv(shrBore,P.investCostMean,P.investCostSD),-1/eps),1/eps); %Functionally truncate the sample
-    highCost = min(max(norminv(newShr,P.investCostMean,P.investCostSD),-1/eps),1/eps);
-    deltaCost = highCost-lowCost;
-%     
-    approxShare = repmat([0:.001:1],ns,1);
-    costArray = repmat(lowCost,1,size(approxShare,2)) + repmat(deltaCost,1,size(approxShare,2)).*approxShare;
-    probArray = normpdf(costArray,P.investCostMean,P.investCostSD);
-    intervalIntegral = sum(costArray.*probArray,2);
+%     lowCost = min(max(norminv(shrBore,P.investCostMean,P.investCostSD),-1/eps),1/eps); %Functionally truncate the sample
+%     highCost = min(max(norminv(newShr,P.investCostMean,P.investCostSD),-1/eps),1/eps);
+%     deltaCost = highCost-lowCost;
+% %   
+
+lowCost = norminv(shrBore,P.investCostMean,P.investCostSD);
+highCost = norminv(newShr,P.investCostMean,P.investCostSD);
+%compute the mean as the mean of the normal distribution truncated to the
+%range (lowCost, highCost) times the probability a parcel lies in that
+%range (e.g. F(highCost) - F(lowCost))
+% 
+%     approxShare = repmat([0:.0001:1],ns,1);
+%     costArray = repmat(lowCost,1,size(approxShare,2)) + repmat(deltaCost,1,size(approxShare,2)).*approxShare;
+%     probArray = normpdf(costArray,P.investCostMean,P.investCostSD);
+%     intervalIntegral = sum(costArray.*probArray,2);
     
 %     intervalIntegral = zeros(numel(lowCost),1);
 %     for ii=1:numel(lowCost);
 %         intervalIntegral(ii) = integral(@(x) x.*normpdf(x,P.investCostMean,P.investCostSD),lowCost(ii),highCost(ii));
 %     end
 % %     
-    investCost = intervalIntegral.*invest; %expected cost conditional on being in interval
     
-    dinvestCost_dinvest = intervalIntegral + highCost.*invest;
-    ddinvestCost_ddinvest = 1./normpdf(highCost,P.investCostMean,P.investCostSD)+2*highCost;
-    
+% dinvestCost_dinvest = intervalIntegral + highCost.*invest;
+% ddinvestCost_ddinvest = 1./normpdf(highCost,P.investCostMean,P.investCostSD)+2*highCost;
+ 
+investCost = P.investCostMean*(newShr-shrBore) + P.investCostSD*(normpdf(lowCost,P.investCostMean,P.investCostSD)-normpdf(highCost,P.investCostMean,P.investCostSD)); %expected cost conditional on being in interval
+dinvestCost_dinvest = P.investCostMean*(1-1/P.investCostSD) + highCost/P.investCostSD;
+ddinvestCost_ddinvest = 1./(P.investCostSD*normpdf(highCost,P.investCostMean,P.investCostSD));
 %     if any(invest); keyboard; end
     
 %      keyboard

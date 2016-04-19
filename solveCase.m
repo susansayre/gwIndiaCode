@@ -30,12 +30,12 @@ smin(P.sbInd) = P.shrBore0;
 smax(P.sbInd) = 1;
 
 n = [modelOpts.capNodes modelOpts.heightNodes];
-fspace = fundefn('spli',n,smin,smax);
-% %make sure there's a break point at max depth dug
-% heightBreaks = fspace.parms{P.levelInd}{1};
-% if ~any(heightBreaks==P.maxDepthDug)
-%     fspace.parms{P.levelInd}{1} = sort([heightBreaks; P.maxDepthDug]);
-% end
+fspace = fundefn('lin',n,smin,smax);
+%make sure there's a break point at max depth dug
+heightBreaks = fspace.parms{P.levelInd}{1};
+if ~any(heightBreaks==P.maxDepthDug)
+    fspace.parms{P.levelInd}{1} = sort([heightBreaks; P.maxDepthDug]);
+end
 
 snodes = funnode(fspace);
 s = gridmake(snodes);
@@ -60,10 +60,11 @@ vGuess = feval(model.func,'f',s,xGuess,[],P);
 nextStateGuess = feval(model.func,'g',s,xGuess,[],P);
 xGuess(:,P.investInd) = min(.5*ub(:,P.investInd),newShr-s(:,P.sbInd));
 
-optset('dpsolve','algorithm','newton');
+optset('dpsolve','algorithm','funcit');
 optset('dpsolve','maxit',2000);
 
-[c,scoord,v,x,resid] = dpsolve(model,fspace,s,vGuess,xGuess);
+[c,scoord,v,x,resid,exf] = dpsolve(model,fspace,s,vGuess,xGuess);
+if exf==0; keyboard; end
 [levels,shares] = ndgrid(scoord{P.levelInd},scoord{P.sbInd});
 s0(P.sbInd) = P.shrBore0;
 s0(P.levelInd) = P.h0;
@@ -73,6 +74,8 @@ output.opt.vFunc = v;
 output.opt.val = funeval(c,fspace,s0);
 output.opt.statePath = squeeze(ssim)';
 output.opt.controlPath = squeeze(xsim)';
+output.opt.valPath = feval(model.func,'f',output.opt.statePath,output.opt.controlPath,[],P);
+output.opt.optVal = (P.discount.^(0:length(output.opt.valPath)-1))*output.opt.valPath;
 %extract and store necessary optimal management output
 
 save beforeAe
@@ -91,12 +94,14 @@ sYlabel = {'%','meters'};
  save beforeReForIWREC
  output.reOut = reSolve(P,modelOpts);
  
+ yrs = min([length(output.reOut.controlPath) length(output.aeOut.controlPath) length(output.opt.controlPath)]);
+ 
  for ii=2:3; 
     subplot(2,2,ii+1); 
-    plot(output.aeOut.controlPath(1:50,ii)/10,'--'); 
+    plot(output.aeOut.controlPath(1:yrs,ii)/10,'--'); 
     hold on; 
-    plot(output.reOut.controlPath(1:50,ii)/10,'-.'); 
-    plot(output.opt.controlPath(1:50,ii)/10); 
+    plot(output.reOut.controlPath(1:yrs,ii)/10,'-.'); 
+    plot(output.opt.controlPath(1:yrs,ii)/10); 
     title(xTitles{ii});
     legend('Common Property AE','Common Property RE','Optimal Management')
 end; 
@@ -108,13 +113,13 @@ for ii=1:2;
     else
         constant = 0; slope=1;
     end
-    plot(constant+slope*output.aeOut.statePath(1:50,ii),'--'); 
+    plot(constant+slope*output.aeOut.statePath(1:yrs,ii),'--'); 
     hold on; 
-    plot(constant+slope*output.reOut.statePath(1:50,ii),'-.'); 
-    plot(constant+slope*output.opt.statePath(1:50,ii)); 
+    plot(constant+slope*output.reOut.statePath(1:yrs,ii),'-.'); 
+    plot(constant+slope*output.opt.statePath(1:yrs,ii)); 
     title(sTitles{ii});
     ylabel(sYlabel{ii});
-    legend('Common Property','Optimal Management','Location','SouthEast')
+    legend('Common Property AE','Common Property RE','Optimal Management')
 end;
 saveas(gcf,'states','epsc')
 

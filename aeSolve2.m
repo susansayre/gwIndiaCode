@@ -28,7 +28,8 @@ while valChange>P.iTol
     %find maxCost of farms that have already adopted.
     lowCost = min(max(norminv(shrBore(t),P.investCostMean,P.investCostSD),-1/eps),1/eps);
     %solve optimal stopping problem for this trend
-    fspace = fundefn('spli',[10 10],[P.bottom lowCost],[P.landHeight P.investCostMean+3*P.investCostSD],[],[0;1]);
+    %convert state variable to be naturally bounded on [0,1].
+    fspace = fundefn('spli',[modelOpts.heightNodes modelOpts.capNodes],[P.bottom shrBore(t)],[P.landHeight 1],[],[0;1]);
     scoord = funnode(fspace);
     snodes = gridmake(scoord);
     model.params = {P};
@@ -40,12 +41,11 @@ while valChange>P.iTol
     simulStates = [repmat(levelPath(t),numel(s{2}),1) s{2} 0*s{2}];
     [spath,xpath] = dpsimul(model,simulStates,nyrs,s,x);
     %find maxCost of farms that have adopted by end of period
-    highCost = max(spath(:,3,2).*spath(:,2,2));
+    shrBore(t+1) = max(shrBore(t),max(spath(:,3,2).*spath(:,2,2)));
+    highCost = min(max(norminv(shrBore(t),P.investCostMean,P.investCostSD),-1/eps),1/eps);
     if highCost<=lowCost
-        shrBore(t+1) = shrBore(t);
         investCost = 0;
     else
-        shrBore(t+1) = normcdf(highCost,P.investCostMean,P.investCostSD);
         investCost = integral(@(x) x.*normpdf(x,P.investCostMean,P.investCostSD),lowCost,highCost)*(shrBore(t+1)-shrBore(t));
     end
     
@@ -67,7 +67,7 @@ while valChange>P.iTol
     val(t,:) = [nbDug nbBore (1-shrBore(t))*nbDug + shrBore(t)*nbBore - investCost];
     xPath(t,:) = [shrBore(t+1)-shrBore(t) gwDug gwBore];
 
-    valChange = val(t,3)*P.discount^(t-1);
+    valChange = abs(val(t,3)*P.discount^(t-1));
     t = t+1;
 
 end
@@ -75,6 +75,6 @@ end
 aeOutput.statePath = [shrBore' levelPath'];
 aeOutput.controlPath = xPath;
 aeOutput.valPath = val;
-aeOutput.aeVal = P.discount.^(0:length(val)-1)*val(:,3);
+aeOutput.aeVal = (P.discount.^(0:length(val)-1))*val(:,3);
    
 	
