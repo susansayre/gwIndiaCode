@@ -6,20 +6,21 @@ parameterMat = {
     'dDugSlope'         'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	.2;
     'dBoreInt'          'Intercept of gw demand curve for bore wells'            '$/vol'         1.8;
     'dBoreSlope'        'Absolute value of slope of gw demand for bore wells'    '$/vol^2'    	.1;
-    'electricity'       'cost per vol per m'                                    '$/m/vol'       .1;
-    'landHeight'        'Initial Surface Level'                                 'm'             20;
+    'electricity'       'cost per vol per m'                                    '$/m/vol'       .14;
+    'landHeight'        'Initial Surface Level'                                 'm'             16;
     'initialLift'       'Initial m of pumping'                                  'm'             .1*16;
     'bottom'            'Aquifer bottom'                                        'm'             0;
     'inflow'            'Natural inflow per year'                               'vol/yr'        1;
     'returnFlow'        'Share of applied water that percolates back'           '%'             .02;
-    'AS'                'area*storativity (vol released from 1 m of aquifer)'   'vol/m'         20;
+    'AS'                'area*storativity (vol released from 1 m of aquifer)'   'vol/m'         10;
     'maxInvest'         'max investment possible in one year'                   '%'             .1;
-    'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             -1;
+    'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             -1.6;
     'shrBore0'          'initial shr in bore wells'                             '%'             .01;
     'maxDepthDug'       'max depth for a dug well'                              'm'             8;              %paper about poverty
-    'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           1;         %completely made up
+    'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           2.5;         %completely made up
     'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      30;            %guess
     'investCostSD'      'sd of investment cost'                                 '$'             12;             %guess
+    'convertTax'        'tax paid for drilling a well/converting'               '$/parcel'      0;     
     };
 
 numParams = size(parameterMat,1);
@@ -41,8 +42,10 @@ end
 
 compStatParams = {
     %parameterName      %type       %inputs
-%    'initialLift'   3           [1 2];
-    'dBoreInt'      3           [1];
+%    'AS'                1           [10   12.5    15];
+%   'dBoreInt'          1           [1.7 1.8 1.9 2];
+%    'investCostMean'    1           [20 30 40];
+     'convertTax'       1           [0 5 10 15];
     };
 
 numCompStatParams = size(compStatParams,1);
@@ -79,12 +82,12 @@ csIndMat = gridmake(csInds);
 [cases,csParams] = size(csValues);
 
 %set model options that won't change across cs runs
-modelOpts.heightNodes = 25; %number of approximation nodes for levels, save one for maxDepth Dug
-modelOpts.capNodes = 25; %number of approximation nodes for well capital
+modelOpts.heightNodes = 15; %number of approximation nodes for levels, save one for maxDepth Dug
+modelOpts.capNodes = 15; %number of approximation nodes for well capital
 %modelOpts.yrNodes = 10;
 modelOpts.minT = 50; %minimum number of years forward to simulate
 modelOpts.trendPts = 1; %maximum number of point used to compute trend expectations
-modelOpts.vtol = 1; %value function convergence tolerance
+modelOpts.vtol = 1e-1; %value function convergence tolerance
 modelOpts.ttol = 1; %level trend convergence tolerance
 modelOpts.algorithm = 'newton';
 modelOpts.maxit = 2000;
@@ -99,4 +102,6 @@ for ii=1:cases
     %run problem for this parameter set
     runID.case = ['case' num2str(ii)];
     results{ii} = solveCase(P,modelOpts,runID);
+    pgainAE(ii) = results{ii}.aeOut.pgain;
+    pgainRE(ii) = results{ii}.reOut.pgain;
 end

@@ -23,16 +23,18 @@ shrBore = P.shrBore0;
 % trend = P.levelTrend;
 valChange = 1;
 
+iter = 0;
 while valChange>P.iTol
-    
+    iter = iter+1;
     %find maxCost of farms that have already adopted.
     lowCost = min(max(norminv(shrBore(t),P.investCostMean,P.investCostSD),-1/eps),1/eps);
     %solve optimal stopping problem for this trend
     %convert state variable to be naturally bounded on [0,1].
-    fspace = fundefn('spli',[modelOpts.heightNodes modelOpts.capNodes],[P.bottom shrBore(t)],[P.landHeight 1],[],[0;1]);
+    fspace = fundefn('lin',[modelOpts.heightNodes modelOpts.capNodes],[P.bottom shrBore(t)],[P.landHeight 1],[],[0;1]);
     scoord = funnode(fspace);
     snodes = gridmake(scoord);
     model.params = {P};
+    optset('dpsolve','showiters',0)
     [c,s,v,x] = dpsolve(model,fspace,snodes);
 
     %simulate forward to see who invests this period
@@ -64,10 +66,11 @@ while valChange>P.iTol
     levelPath(t+1) = updateLevels(levelPath(t),gwUse,P);
     P.levelTrend = levelPath(t+1)-levelPath(t);
     
-    val(t,:) = [nbDug nbBore (1-shrBore(t))*nbDug + shrBore(t)*nbBore - investCost];
+    val(t,:) = [nbDug nbBore (1-shrBore(t))*nbDug + shrBore(t)*nbBore - investCost (shrBore(t+1)-shrBore(t))*P.convertTax];
     xPath(t,:) = [shrBore(t+1)-shrBore(t) gwDug gwBore];
 
     valChange = abs(val(t,3)*P.discount^(t-1));
+    fprintf ('%4i %10.1e\n',iter,valChange)
     t = t+1;
 
 end

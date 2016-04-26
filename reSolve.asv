@@ -63,7 +63,7 @@ while valChange>P.iTol
     highCost = min(max(norminv(shrBore(t),P.investCostMean,P.investCostSD),-1/eps),1/eps);
     if highCost<=lowCost
         investCost = 0;
-    else
+    else 
         investCost = integral(@(x) x.*normpdf(x,P.investCostMean,P.investCostSD),lowCost,highCost)*(shrBore(t+1)-shrBore(t));
     end
 

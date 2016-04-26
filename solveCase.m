@@ -13,13 +13,8 @@ P.costDug_a = P.dDugInt*exp(-P.maxDepthDug*P.slopeMaxDepth/P.dDugInt); P.costDug
 %scaling parameters
 %P.valScale = 1/2*max(P.dDugInt^2/P.dDugSlope,P.dBoreInt^2/P.dBoreSlope);
 
-%generate parcel investment costs
-P.shrPoints = 0:1/modelOpts.icSteps:1;
-maxCost = 100;
-P.investCosts = min(maxCost,max(-maxCost,norminv(P.shrPoints,P.investCostMean,P.investCostSD)));
-P.icProbs = normpdf(P.investCosts,P.investCostMean,P.investCostSD);
-
 %% solve the optimal management problem
+P.cp = 0;
 model.func = 'optFunc';
 model.discount = P.discount;
 model.params = {P};
@@ -32,10 +27,10 @@ smax(P.sbInd) = 1;
 n = [modelOpts.capNodes modelOpts.heightNodes];
 fspace = fundefn('lin',n,smin,smax);
 %make sure there's a break point at max depth dug
-heightBreaks = fspace.parms{P.levelInd}{1};
-if ~any(heightBreaks==P.maxDepthDug)
-    fspace.parms{P.levelInd}{1} = sort([heightBreaks; P.maxDepthDug]);
-end
+% heightBreaks = fspace.parms{P.levelInd}{1};
+% if ~any(heightBreaks==P.maxDepthDug)
+%     fspace.parms{P.levelInd}{1} = sort([heightBreaks; P.maxDepthDug]);
+% end
 
 snodes = funnode(fspace);
 s = gridmake(snodes);
@@ -61,11 +56,13 @@ nextStateGuess = feval(model.func,'g',s,xGuess,[],P);
 xGuess(:,P.investInd) = min(.5*ub(:,P.investInd),newShr-s(:,P.sbInd));
 
 optset('dpsolve','algorithm','funcit');
-optset('dpsolve','maxit',2000);
+optset('dpsolve','maxit',5000);
+optset('dpsolve','showiters',1);
+optset('dpsolve','tol',modelOpts.vtol);
 
 [c,scoord,v,x,resid,exf] = dpsolve(model,fspace,s,vGuess,xGuess);
 if exf==0; keyboard; end
-[levels,shares] = ndgrid(scoord{P.levelInd},scoord{P.sbInd});
+[shares,levels] = ndgrid(scoord{P.sbInd},scoord{P.levelInd});
 s0(P.sbInd) = P.shrBore0;
 s0(P.levelInd) = P.h0;
 [ssim,xsim] = dpsimul(model,s0,modelOpts.minT,scoord,x);
@@ -78,24 +75,22 @@ output.opt.valPath = feval(model.func,'f',output.opt.statePath,output.opt.contro
 output.opt.optVal = (P.discount.^(0:length(output.opt.valPath)-1))*output.opt.valPath;
 %extract and store necessary optimal management output
 
-save beforeAe
+P.cp = 1;
 % solve the adaptive expectations management problem
 output.aeOut = aeSolve2(P,modelOpts);
 output.aeOut.pgain = (output.opt.val - output.aeOut.aeVal)/output.aeOut.aeVal;
-output.aeOut.pgain
 
 figure()
 xTitles = {'Investment','Water (Traditional)','Water (Modern)'};
 sTitles = {'Share in Modern Agriculture','Pumping Lift'};
 sYlabel = {'%','meters'};
 
-
 % solve the "rational" expectations management problem
- save beforeReForIWREC
  output.reOut = reSolve(P,modelOpts);
+ output.reOut.pgain = (output.opt.val - output.reOut.reVal)/output.reOut.reVal;
  
  yrs = min([length(output.reOut.controlPath) length(output.aeOut.controlPath) length(output.opt.controlPath)]);
- 
+
  for ii=2:3; 
     subplot(2,2,ii+1); 
     plot(output.aeOut.controlPath(1:yrs,ii)/10,'--'); 
@@ -121,7 +116,7 @@ for ii=1:2;
     ylabel(sYlabel{ii});
     legend('Common Property AE','Common Property RE','Optimal Management')
 end;
-saveas(gcf,'states','epsc')
+
 
 
 %% compare outputs and return key results
@@ -134,3 +129,5 @@ if ~exist(['detailedOutput/' parameterSetID.timeStamp],'dir')
     mkdir(['detailedOutput/' parameterSetID.timeStamp])
 end
 save(['detailedOutput/' parameterSetID.timeStamp '/' parameterSetID.case ''])
+saveas(gcf,fullfile('detailedOutput',parameterSetID.timeStamp,[parameterSetID.case '_paths']),'epsc')
+close all

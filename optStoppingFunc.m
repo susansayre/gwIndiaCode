@@ -30,7 +30,7 @@ function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P)
             nbDug = P.dDugInt*gwDug - P.dDugSlope/2*gwDug.^2 - costDug.*gwDug;
             nbBore = P.dBoreInt*gwBore - P.dBoreSlope/2*gwBore.^2 - costBore.*gwBore;
             
-            out1 = repmat((1-type).*nbDug + type.*nbBore,1,dx) - x.*repmat(costs,1,dx);
+            out1 = repmat((1-type).*nbDug + type.*nbBore,1,dx) - x.*repmat(costs+P.convertTax,1,dx);
             
  		case 'g'
             %state transition

@@ -24,11 +24,25 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
             out2 = zeros(ns,dx);
             out2(:,P.gwDugInd) = min(P.dDugInt/P.dDugSlope,(gwLevels-P.bottom)*P.AS); %we know the benefit is negative at higher amts
             out2(:,P.gwBoreInd) = min((gwLevels-P.bottom)*P.AS,P.dBoreInt/P.dBoreSlope); %we know the benefit is negative at higher amts
-            out2(:,P.investInd) = .1*(1-s(:,P.sbInd));  %this implies converting all of the additional parcels
+            out2(:,P.investInd) = (1-s(:,P.sbInd));  %this implies converting all of the additional parcels
 
    		case 'f'
             %return net benefits
 			[b, dnb, ddnb] = netBen(gwDug,gwBore,investmentAmts,gwLevels,shrBore,P);
+%             
+%             deltaGW = 1e-4;
+%             deltaInvest = 1e-6;
+%             %check derivatives;
+%             b2GWDug = netBen(gwDug+deltaGW,gwBore,investmentAmts,gwLevels,shrBore,P);
+%             est_dbgwDug = (b2GWDug.all-b.all)/deltaGW;
+% 
+%             b2GWBore = netBen(gwDug,gwBore+deltaGW,investmentAmts,gwLevels,shrBore,P);
+%             est_dbgwBore = (b2GWBore.all-b.all)/deltaGW;
+% 
+%             b2Invest = netBen(gwDug,gwBore,investmentAmts+deltaInvest,gwLevels,shrBore,P);
+%             est_dbInvest = (b2Invest.all-b.all)/deltaInvest;
+%            
+% keyboard
             out1 = b.all;
             out2(:,P.investInd) = dnb.di;
             out2(:,P.gwDugInd) = dnb.dgwDug;
