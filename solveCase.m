@@ -9,6 +9,7 @@ P.investInd = 1; P.gwDugInd = 2; P.gwBoreInd = 3; P.sbInd = 1; P.levelInd = 2; P
 %value is equal to the demand intercept at maxDepthDug and its slope is
 %equal to slopeMaxDepth at this same value.
 P.costDug_a = P.dDugInt*exp(-P.maxDepthDug*P.slopeMaxDepth/P.dDugInt); P.costDug_b = P.slopeMaxDepth/P.dDugInt;
+keyboard
 
 %add a cost as we near the bottom of the aquifer that ensures it is
 %uneconomic to pump water at the bottom of the aquifer.
@@ -69,7 +70,8 @@ optset('dpsolve','nres',1);
 
 figure()
 [c,scoord,v,x,resid,exf] = dpsolve(model,fspace,s,vGuess,xGuess);
-if exf==0; keyboard; end
+output.opt.converged = exf;
+
 [shares,levels] = ndgrid(scoord{P.sbInd},scoord{P.levelInd});
 s0(P.sbInd) = P.shrBore0;
 s0(P.levelInd) = P.h0;
@@ -101,10 +103,10 @@ sYlabel = {'%','meters'};
 
  for ii=2:3; 
     subplot(2,2,ii+1); 
-    plot(output.aeOut.controlPath(1:yrs,ii)/10,'--'); 
+    plot(output.aeOut.controlPath(1:yrs,ii),'--'); 
     hold on; 
-    plot(output.reOut.controlPath(1:yrs,ii)/10,'-.'); 
-    plot(output.opt.controlPath(1:yrs,ii)/10); 
+    plot(output.reOut.controlPath(1:yrs,ii),'-.'); 
+    plot(output.opt.controlPath(1:yrs,ii)); 
     title(xTitles{ii});
     legend('Common Property AE','Common Property RE','Optimal Management')
 end; 

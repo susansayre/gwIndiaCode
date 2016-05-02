@@ -1,0 +1,9 @@
+List of changes to make:
+
+1. Get scaling to accurately match the results presented in the paper
+2. Change the comparative statics on the modern farm to be increase in demand at current levels and rotate around this point
+3. Consider downward time trend on investment costs so that optimal management doesn't involve immediate conversion
+4. Run one simulation with very high investment cost and low std dev so that no farms invest -- let's us say how much of the effect is due to the option to convert
+5. Consider truncated investment costs so that costs don't go negative
+6. Longer and/or more sophisticated time trends
+7. Improved transitioning from full investment to none in the optimal control problem
