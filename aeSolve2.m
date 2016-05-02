@@ -7,7 +7,7 @@ function aeOutput = aeSolve2(P,modelOpts)
 
 t=1;
 % change = 1;
-P.iTol = 1e-5;
+P.iTol = 1e-3;
 
 model.func = 'optStoppingFunc';
 model.discount = P.discount;
@@ -27,7 +27,7 @@ iter = 0;
 while valChange>P.iTol
     iter = iter+1;
     %find maxCost of farms that have already adopted.
-    lowCost = min(max(norminv(shrBore(t),P.investCostMean,P.investCostSD),-1/eps),1/eps);
+    lowCost = norminv(shrBore(t),P.investCostMean,P.investCostSD);
     %solve optimal stopping problem for this trend
     %convert state variable to be naturally bounded on [0,1].
     fspace = fundefn('lin',[modelOpts.heightNodes modelOpts.capNodes],[P.bottom shrBore(t)],[P.landHeight 1],[],[0;1]);
@@ -35,8 +35,9 @@ while valChange>P.iTol
     snodes = gridmake(scoord);
     model.params = {P};
     optset('dpsolve','showiters',0)
+    figure()
     [c,s,v,x] = dpsolve(model,fspace,snodes);
-
+    close
     %simulate forward to see who invests this period
     nyrs = 1;
     
@@ -44,11 +45,12 @@ while valChange>P.iTol
     [spath,xpath] = dpsimul(model,simulStates,nyrs,s,x);
     %find maxCost of farms that have adopted by end of period
     shrBore(t+1) = max(shrBore(t),max(spath(:,3,2).*spath(:,2,2)));
-    highCost = min(max(norminv(shrBore(t),P.investCostMean,P.investCostSD),-1/eps),1/eps);
+    invest = shrBore(t+1) - shrBore(t);
+    highCost = norminv(shrBore(t+1),P.investCostMean,P.investCostSD);
     if highCost<=lowCost
         investCost = 0;
     else
-        investCost = integral(@(x) x.*normpdf(x,P.investCostMean,P.investCostSD),lowCost,highCost)*(shrBore(t+1)-shrBore(t));
+        investCost = P.investCostMean*invest+P.investCostSD*(normpdf(lowCost,P.investCostMean,P.investCostSD)-normpdf(highCost,P.investCostMean,P.investCostSD));
     end
     
     lift = P.landHeight - levelPath(t);
@@ -66,7 +68,7 @@ while valChange>P.iTol
     levelPath(t+1) = updateLevels(levelPath(t),gwUse,P);
     P.levelTrend = levelPath(t+1)-levelPath(t);
     
-    val(t,:) = [nbDug nbBore (1-shrBore(t))*nbDug + shrBore(t)*nbBore - investCost (shrBore(t+1)-shrBore(t))*P.convertTax];
+    val(t,:) = [nbDug nbBore (1-shrBore(t))*nbDug + shrBore(t)*nbBore - investCost invest*P.convertTax];
     xPath(t,:) = [shrBore(t+1)-shrBore(t) gwDug gwBore];
 
     valChange = abs(val(t,3)*P.discount^(t-1));

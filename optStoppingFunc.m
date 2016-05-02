@@ -10,19 +10,19 @@ function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P)
     switch flag
 	
 		case 'b'
-            out1 = 0; %lower bounds on all variables are 0;
+            out1 = 0*x; %lower bounds on all variables are 0;
             out2 = 1;
             
         case 'f'
             %return net benefits
             levels = s(:,1);
             percCheaper = s(:,2); %state variable runs from 0 to 1 and identifies farm costs based on where in the interval the farm ranks
-            costs = min(max(norminv(percCheaper,P.investCostMean,P.investCostSD),-1/eps),1/eps);
+            costs = norminv(percCheaper,P.investCostMean,P.investCostSD);
             type = s(:,3); %0=dug, 1=bore
             
             lift = P.landHeight - levels;
             costDug = P.costDug_a*exp(P.costDug_b*lift);
-            costBore = P.electricity*lift;
+            costBore = P.electricity*lift; %+ exp(P.costBore_a+P.costBore_b*levels);
 
             gwDug = (levels>0).*max(0,(P.dDugInt-costDug)/P.dDugSlope);
             gwBore = (levels>0).*max(0,(P.dBoreInt-costBore)/P.dBoreSlope);
@@ -30,13 +30,12 @@ function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P)
             nbDug = P.dDugInt*gwDug - P.dDugSlope/2*gwDug.^2 - costDug.*gwDug;
             nbBore = P.dBoreInt*gwBore - P.dBoreSlope/2*gwBore.^2 - costBore.*gwBore;
             
-            out1 = repmat((1-type).*nbDug + type.*nbBore,1,dx) - x.*repmat(costs+P.convertTax,1,dx);
+            out1 = min(max(repmat((1-type).*nbDug + type.*nbBore,1,dx) - x.*repmat(costs+P.convertTax,1,dx),-1/eps),1/eps);
             
  		case 'g'
             %state transition
             out1(:,1) = max(P.bottom,s(:,1)+P.levelTrend);
             out1(:,2) = s(:,2);
             out1(:,3) = min(1,s(:,3)+x);
-			
 	end
 		

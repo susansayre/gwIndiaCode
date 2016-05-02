@@ -18,8 +18,8 @@ parameterMat = {
     'shrBore0'          'initial shr in bore wells'                             '%'             .01;
     'maxDepthDug'       'max depth for a dug well'                              'm'             8;              %paper about poverty
     'slopeMaxDepth'     'slope of cost function at max depth'                   '$/m'           2.5;         %completely made up
-    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      30;            %guess
-    'investCostSD'      'sd of investment cost'                                 '$'             15;             %guess
+    'investCostMean'    'mean of investment cost distribution'                  '$/parcel'      50;            %guess
+    'investCostSD'      'sd of investment cost'                                 '$'             30;             %guess
     'convertTax'        'tax paid for drilling a well/converting'               '$/parcel'      0;   
     'slopeBoreZero'     'slope of the penalty for approaching bottom at zero'   ''              0;
     };
@@ -44,11 +44,11 @@ end
 compStatParams = {
     %parameterName      %type       %inputs
 %    'AS'                1           [10   12.5    15];
-   'dBoreInt'            1           [1.7 1.8 1.9];
-   'dBoreSlope'           1           [.1 .2 .3];
+%    'dBoreInt'            1           [1.7 1.8 1.9];
+%    'dBoreSlope'           1           [.1 .2 .3];
 %    'investCostMean'    1           [20 30 40];
-%      'investCostMean'       1           [50 30 10];
-%      'investCostSD'         1           [15 30 45];
+     'investCostMean'       1           [50 30 10];
+     'investCostSD'         1           [15 30 45];
     };
 
 numCompStatParams = size(compStatParams,1);
@@ -128,11 +128,9 @@ try
     reStatePath = extractResult(results,'reOut.statePath(1:50,:)')
     optStatePath = extractResult(results,'opt.statePath(1:50,:)')
     
-    aecontrolPath = extractResult(results,'aeOut.controlPath(1:50,:)')
-    recontrolPath = extractResult(results,'reOut.controlPath(1:50,:)')
-    optcontrolPath = extractResult(results,'opt.controlPath(1:50,:)')   
-catch
-end
+    aecontrolPath = extractResult(results,'aeOut.statePath(1:50,:)')
+    reStatePath = extractResult(results,'reOut.statePath(1:50,:)')_
+    optStatePath = extractResult(results,'opt.statePath(1:50,:)')
 
 diary off
 

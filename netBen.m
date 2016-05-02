@@ -6,7 +6,7 @@ function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,P)
     
     ns = length(shrBore);
     
-    gwLevel = max(P.bottom,min(P.landHeight,gwLevel));
+   % gwLevel = max(P.bottom,min(P.landHeight,gwLevel));
 	lift = P.landHeight - gwLevel;
     
     if any(lift>P.landHeight-P.bottom)||any(lift<0)
@@ -15,6 +15,7 @@ function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,P)
     
     %compute cost per unit for dug wells
     costDug = min(P.costDug_a*exp(P.costDug_b*lift),10*P.dDugInt); %limit the cost to keep absurdly high costs from blowing up the problem
+%    costBore = P.electricity*lift + exp(P.costBore_a+P.costBore_b*gwLevel);
     costBore = P.electricity*lift;
     newShr = invest + shrBore;
     
@@ -76,7 +77,7 @@ highCost = norminv(newShr,P.investCostMean,P.investCostSD);
 investCost = P.investCostMean*(newShr-shrBore) + P.investCostSD*(normpdf(lowCost,P.investCostMean,P.investCostSD)-normpdf(highCost,P.investCostMean,P.investCostSD)); %expected cost conditional on being in interval
 dinvestCost_dinvest = P.investCostMean*(1-1/P.investCostSD) + highCost/P.investCostSD;
 ddinvestCost_ddinvest = 1./(P.investCostSD*normpdf(highCost,P.investCostMean,P.investCostSD));
-%     if any(invest); keyboard; end
+
     
 %      keyboard
 	nbDug = P.dDugInt*gwDug - P.dDugSlope/2*gwDug.^2 - costDug.*gwDug;

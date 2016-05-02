@@ -13,8 +13,7 @@ P.costDug_a = P.dDugInt*exp(-P.maxDepthDug*P.slopeMaxDepth/P.dDugInt); P.costDug
 %add a cost as we near the bottom of the aquifer that ensures it is
 %uneconomic to pump water at the bottom of the aquifer.
 P.costBore_a = log(P.dBoreInt);
-P.costBore_b = P.slopeBoreZero*exp(-P.costBore_a);
-P.costBore_a = 0;
+P.costBore_b = -P.slopeBoreZero*exp
 
 %scaling parameters
 %P.valScale = 1/2*max(P.dDugInt^2/P.dDugSlope,P.dBoreInt^2/P.dBoreSlope);
@@ -25,7 +24,6 @@ model.discount = P.discount;
 model.params = {P};
 
 smin(P.levelInd) = P.bottom;
-%smin(P.levelInd) = 10;
 smax(P.levelInd) = P.landHeight;
 smin(P.sbInd) = P.shrBore0;
 smax(P.sbInd) = 1;
@@ -65,16 +63,13 @@ optset('dpsolve','algorithm','funcit');
 optset('dpsolve','maxit',5000);
 optset('dpsolve','showiters',1);
 optset('dpsolve','tol',modelOpts.vtol);
-optset('dpsolve','nres',1);
 
-figure()
 [c,scoord,v,x,resid,exf] = dpsolve(model,fspace,s,vGuess,xGuess);
 if exf==0; keyboard; end
 [shares,levels] = ndgrid(scoord{P.sbInd},scoord{P.levelInd});
 s0(P.sbInd) = P.shrBore0;
 s0(P.levelInd) = P.h0;
 [ssim,xsim] = dpsimul(model,s0,modelOpts.minT,scoord,x);
-close
 
 output.opt.vFunc = v;
 output.opt.val = funeval(c,fspace,s0);
@@ -138,3 +133,4 @@ if ~exist(['detailedOutput/' parameterSetID.timeStamp],'dir')
 end
 save(['detailedOutput/' parameterSetID.timeStamp '/' parameterSetID.case ''])
 saveas(gcf,fullfile('detailedOutput',parameterSetID.timeStamp,[parameterSetID.case '_paths']),'epsc')
+close all
