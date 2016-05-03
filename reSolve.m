@@ -1,62 +1,83 @@
-function reOutput = reSolve(P,modelOpts,paramGuess)
-    if ~exist('paramGuess')
-        projectedLevelsIn = P.h0*ones(modelOpts.trendPts,1);
-        YrsLeft = 0;
-        levelParams(modelOpts.trendPts) = P.h0;
-    else
-        YrsLeft = paramGuess.yrsLeft;
-        levelParams = paramGuess.levelParams;
-    end
-    change = 100;
-	model.func = 'cpFunc';
-	model.discount = P.discount;
-    while change>modelOpts.ttol
-	    P.levelParams = levelParams;
-        model.params = {P};
-        smin = [0 0]; %both well capital and time remaining have natural minimums at 0
-		smax = [P.maxWellCap max(YrsLeft,modelOpts.minT)]; %we may have trouble with the maxWellCap since there is no natural max
-		%create the matrix of nodes
-        n = [modelOpts.capNodes min(modelOpts.yrNodes,smax(2))];
-		fspace = fundefn('cheb',n,smin,smax);
-        snodes = funnode(fspace);
-        s = gridmake(snodes);
-        v = ones(size(s,1),1); x = [v v];
-        [~,s,~,x] = dpsolve(model,fspace,s,v,x);
-		[ssim,xsim] = dpsimul(model,[P.maxWellCap YrsLeft],YrsLeft,s,x);
-        levelPath = P.h0;
-        if YrsLeft
-            for t=1:YrsLeft
-                nextState = optFunc('g',[ssim(:,1,t) levelPath(t)],xsim(1,:,t),[],P);
-                nextLevel(t) = nextState(2);
-                levelPath(t+1) = nextLevel(t);
-            end
-        else
-            nextLevel(1) = levelPath(1);
-            levelPath(2) = levelPath(1);
-        end
-        oldLevels = polyval(levelParams,1:YrsLeft+1);
-        change = max(abs(oldLevels - nextLevel));
-        if YrsLeft>5
-            rowInds = [1 2 floor(YrsLeft/2) YrsLeft];
-        else
-            rowInds = 1:YrsLeft;
-        end
-        if any(rowInds)
-            matchYrs = rowInds-1;
-            matchLevels = levelPath(rowInds);
-        else
-            matchYrs = 0:modelOpts.trendPts-1;
-            matchLevels = nextLevel*ones(1,modelOpts.trendPts); 
-        end
-        [YrsLeft,levelParams] = computeTrend(matchLevels,matchYrs);        
-    end
-	
-    %check whether our final action seems like we're really at a steady
-    %state
-    lastChange = levelPath(end) - levelPath(end-1)
+function reOutput = reSolve(P,modelOpts)
+
+t = 1;
+model.func = 'optStoppingFunc';
+model.discount = P.discount;
+model.actions = [0;1];
+model.discretestates = 3;
+model.e = 0;
+model.w = 1;
+
+P.iTol = 1e-5;
+P.trendTol = 1e-3;
+shrBore = P.shrBore0;
+valChange = 1;
+
+levelPath = P.h0;
+shrBore = P.shrBore0;
+
+% optset('dpsolve','algorithm','funcit');
+while valChange>P.iTol
+    %find maxCost of farms that have already adopted.
+    lowCost = norminv(shrBore(t),P.investCostMean,P.investCostSD);
+    %solve optimal stopping problem for this trend
+    fspace = fundefn('lin',[modelOpts.heightNodes modelOpts.capNodes],[P.bottom shrBore(t)],[P.landHeight 1],[],[0;1]);
+    scoord = funnode(fspace);
+    snodes = gridmake(scoord);
+    optset('dpsolve','showiters',0)
     
-    reOutput.cvValue = optFunc('f',[ssim(:,1) levelPath],xsim,[],P);
-    reOutput.pvValue = (model.discount.^(0:YrsLeft+1)).*reOutput.cvValue;
-    reOutput.capitalPath = ssim(:,1);
-    reOutput.levelPath = levelPath;
-	
+    iter = 0;
+    trendChange = 1;
+    while trendChange>P.trendTol
+        iter = iter + 1;
+        model.params = {P};
+        figure()
+        [c,s,v,x] = dpsolve(model,fspace,snodes);
+        close()
+        %simulate forward to see who invests under this trend  
+        nyrs=1;
+
+        simulStates = [repmat(levelPath(t),numel(s{2}),1) s{2} 0*s{2}];
+        [spath,xpath] = dpsimul(model,simulStates,nyrs,s,x);
+        lift = P.landHeight - levelPath(t);
+        costDug = P.costDug_a*exp(P.costDug_b*lift);
+        costBore = P.electricity*lift;
+
+        gwDug = (levelPath(t)>0).*max(0,(P.dDugInt-costDug)/P.dDugSlope);
+        gwBore = (levelPath(t)>0).*max(0,(P.dBoreInt-costBore)/P.dBoreSlope);
+
+        nbDug = P.dDugInt*gwDug - P.dDugSlope/2*gwDug.^2 - costDug.*gwDug;
+        nbBore = P.dBoreInt*gwBore - P.dBoreSlope/2*gwBore.^2 - costBore.*gwBore;
+
+        gwUse = (1-shrBore(t))*gwDug + shrBore(t)*gwBore;
+
+        newLevel = updateLevels(levelPath(t),gwUse,P);
+        newTrend = newLevel -levelPath(t);
+        
+        trendChange = abs(P.levelTrend-newTrend);
+        fprintf ('%4i %10.1e\n',iter,P.levelTrend-newTrend)
+        P.levelTrend = newTrend;
+    end
+  
+    %find maxCost of farms that have adopted by end of period
+    shrBore(t+1) = max(shrBore(t),max(spath(:,3,2).*spath(:,2,2)));
+    invest = shrBore(t+1) - shrBore(t);
+    highCost = norminv(shrBore(t+1),P.investCostMean,P.investCostSD);
+    if highCost<=lowCost
+        investCost = 0;
+    else
+        investCost = P.investCostMean*invest+P.investCostSD*(normpdf(lowCost,P.investCostMean,P.investCostSD)-normpdf(highCost,P.investCostMean,P.investCostSD));
+    end
+
+    levelPath(t+1) = newLevel;
+    val(t,:) = [nbDug nbBore (1-shrBore(t))*nbDug + shrBore(t)*nbBore - investCost invest*P.convertTax];
+    xPath(t,:) = [shrBore(t+1)-shrBore(t) gwDug gwBore];
+
+    valChange = abs(val(t,3)*P.discount^(t-1));
+    t = t+1;		
+end
+
+reOutput.statePath = [shrBore' levelPath'];
+reOutput.controlPath = xPath;
+reOutput.valPath = val;
+reOutput.reVal = (P.discount.^(0:length(val)-1))*val(:,3);

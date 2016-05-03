@@ -1,65 +1,63 @@
-function aeOutput = aeSolve(P,modelOpts)
-	model.func = 'cpFunc';
-	model.discount = P.discount;
-    recentLevels = [P.h0-P.levelTrend; P.h0]; recentYears = [-1; 0];
-    if numel(recentLevels)>2
-        [YrsLeft,levelParams]=computeTrend(recentLevels,recentYears);
-    else
-        YrsLeft = (P.bottom-P.h0)/P.levelTrend;
-        levelParams = [-P.levelTrend P.bottom];
-    end
-    aeVal = 0;
-    npvValue = 0;
-    t=0;
-    
-    statePath(P.wellInd) = P.wellCap0;
-    statePath(P.levelInd) = P.h0;
-    statePath(P.yrsInd) = YrsLeft;
-    paramPath = zeros(1,modelOpts.trendPts)
-    paramPath(1,1:length(levelParams))=levelParams;
-    
-	while npvValue>modelOpts.vtol||t<modelOpts.minT
-        %compute the path that farmers will take as given based on recent
-        %history
-        P.levelParams = levelParams;
-        model.params = {P};
-        smin = [0 0]; %both well capital and time remaining have natural minimums at 0
-        smax = [P.maxWellCap max(YrsLeft,modelOpts.minT)]; %we may have trouble with the maxWellCap since there is no natural max
-        %create the matrix of nodes
-        n = [modelOpts.capNodes min(modelOpts.yrNodes,smax(2))];
-        fspace = fundefn('spli',n,smin,smax);
-        snodes = funnode(fspace);
-        s = gridmake(snodes);
-        
-        %solve the dynamic programming model, taking future water levels as
-        %deterministic
-        v = ones(size(s,1),1); x(:,P.investInd) = P.maxInvest*v; x(:,P.gwInd) = v;
-        [~,s,~,x] = dpsolve(model,fspace,s,v,x);
-        pseudoState = statePath(t+1,[P.wellInd P.levelInd]);
-        simulState(1,:) = statePath(t+1,[P.wellInd P.yrsInd]);
-        [ssim,xsim] = dpsimul(model,simulState,1,s,x);
-        npvValue = model.discount^t*optFunc('f',pseudoState,xsim(1,:,1),[],P);
-        thisAction = xsim(1,:,1);
-        nextState = optFunc('g',pseudoState,thisAction,[],P);
-        nextLevel = nextState(1,2);
+function aeOutput = aeSolve2(P,modelOpts)
+%solve the adaptive expectations problem as an optimal switching problem
 
-        aeVal = aeVal + npvValue;
-        t = t+1;
-        % update the information used to compute the trend. If we haven't
-        % accumulated the max history yet, we'll add points. If we've
-        % already computed the max history, we'll replace the oldest point
-        if length(recentLevels)<modelOpts.trendPts
-            recentLevels = [recentLevels; nextLevel];
-            recentYears = [1-length(recentLevels):0]';
-        else
-            recentLevels = [recentLevels(2:end); nextLevel];
-        end
-        [YrsLeft,levelParams]=computeTrend(recentLevels,recentYears);
-        controlPath(t,:) = thisAction;
-        statePath(t+1,P.wellInd) = ssim(1,1,end);
-        statePath(t+1,P.yrsInd) = YrsLeft;
-        statePath(t+1,P.levelInd) = nextLevel;
-        paramPath(t+1,1:length(levelParams))=levelParams;
-	end
-		
+statePath(1,P.levelInd) = P.h0; 
+statePath(1,P.sbInd) = P.shrBore
+trendPath = P.levelTrend
+
+t=1;
+change = 1;
+P.itol = 1e-5;
+
+while t<P.minT||change>P.iTol
+    
+%compute the optimal action this year and next year for each type given the
+%trajectory.
+    levels = [statePath(t,P.levelInd); statePath(t,P.levelInd)-trendPath(t)];
+    shrBore = statePath(t,P.sbInd);
+    lift = P.landHeight - levels;
+    costDug = P.costDug_a*exp(P.costDug_b*lift);
+    costBore = P.electricity*lift;
+
+    gwDug = (P.dDugInt-costDug)/P.dDugSlope;
+    gwBore = (P.dBoreInt-costBore)/P.dDugBore;
+    controlPath(t,P.gwDugInd) = gwDug;
+    controlPath(t,P.gwBoreInd) = gwBore;
+    
+    nbDug = P.dDugInt*gwDug - P.dDugSlope/2*gwDug.^2 - costDug.*gwDug;
+    nbBore = P.dBoreInt*gwBore - P.dBoreSlope/2*gwBore.^2 - costBore.*gwBore;
+    
+    deltaBen = nbBore(2) - nbDug(2);
+    newShr = normcdf(P.discount*deltaBen,P.investCostMean,P.investCostSD);
+    invest = newShr - shrBore;
+    controlPath(t,P.investInd) = invest;
+    
+    lowCost = min(max(norminv(shrBore,P.investCostMean,P.investCostSD),-1/eps),1/eps);
+    highCost = min(max(norminv(newShr,P.investCostMean,P.investCostSD),-1/eps),1/eps);
+    deltaCost = highCost-lowCost;
+    
+%     approxShare = [0:.1:1]
+%     costArray = repmat(lowCost,1,size(approxShare,2)) + repmat(deltaCost,1,size(approxShare,2)).*approxShare;
+%     probArray = normpdf(costArray,P.investCostMean,P.investCostSD);
+%     intervalIntegral = sum(costArray.*probArray,2);
+    
+    intervalIntegral = integral(@(x) x.*normpdf(x,P.investCostMean,P.investCostSD),lowCost,highCost);
+    
+    investCost = intervalIntegral.*invest; 
+    
+    value(t,:) = [nbDug(1) nbBore(1) shrBore*nbBore(1)+(1-shrBore)*nbDug(1)-investCost];
+    npvValue(t,:) = value(t,:)*P.discount^(t-1);
+
+    statePath(t+1,P.levelInd) = updateLevels(level(1),shrBore*gwBore+(1-shrBore)*gwDug,P);
+    statePath(t+1,P.sbInd) = newShr;
+    
+    change = max(invest,abs(statePath(t+1,P.levelInd)-levels(2)));
+    t = t+1;
+end
+
+aeOutput.statePath = statePath;
+aeOutput.controlPath = controlPath;
+aeOutput.valPath = value;
+aeOutput.value = sum(npvValue);
+   
 	
