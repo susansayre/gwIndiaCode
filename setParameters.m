@@ -1,11 +1,11 @@
 clear all; close all; dbstop if error
+
+P.dDugInt = 1; %set the q intercept of the dug well demand curve equal to 1. Implies traditional farms use 1 unit of water when it is free.
 parameterMat = {
     %1=ParameterName    2=ParameterDescription      					3=ParameterUnits        %4=BaseValue		%Note source following % sign
     'discount'          'discount factor (npv = discount^t*cv)'                 '%'             .95;
-    'dDugInt'           'Intercept of gw demand curve for dug wells'            '$/vol'         2;
-    'dDugSlope'         'Absolute value of slope of gw demand for dug wells'    '$/vol^2'    	2;
-    'dBoreInt'          'Intercept of gw demand curve for bore wells'            '$/vol'        1.8;
-    'dBoreSlope'        'Absolute value of slope of gw demand for bore wells'    '$/vol^2'    	1;
+    'boreQInc'          'increase in max quantity on mod farm'                  '%'             1.8;           %modern farms use twice as much water if free
+    'boreVInc'          'increase in max value'                                 '%'             1.62;              %value to modern farms is twice as large if water is free
     'electricity'       'cost per vol per m'                                    '$/m/vol'       .15;
     'landHeight'        'Initial Surface Level'                                 'm'             20;
     'initialLift'       'Initial m of pumping'                                  'm'             2;
@@ -22,6 +22,9 @@ parameterMat = {
     'investCostSD'      'sd of investment cost'                                 '$'             1.5;             %guess
     'convertTax'        'tax paid for drilling a well/converting'               '$/parcel'      0;   
     'slopeBoreZero'     'slope of the penalty for approaching bottom at zero'   ''              0;
+    'minInvestCost'     'minimum value in the investCost distribution'          '$/parcel'      0;
+    'maxInvestCost'     'maximum value in the investCost distribution'          '$/parcel'      15;
+    'investCostPenalty' 'penalty paid for high investment in one period'        '$/shr/shr'     0;
     };
 
 numParams = size(parameterMat,1);
@@ -41,14 +44,14 @@ end
 %3 = straight % -- input = percent of base value
 %4 = % range -- input = [minShare maxShare numPts(>=2)
 
+
 compStatParams = {
     %parameterName      %type       %inputs
-%    'AS'                1           [10   12.5    15];
-   'dBoreInt'            1           [1.8];
-
-%    'investCostMean'    1           [20 30 40];
-%      'investCostMean'       1           [50 30 10];
-%      'investCostSD'         1           [15 30 45];
+    'AS'                1           [1];
+%     'boreQInc'          1           [1.5 2 2.5];
+%     'boreVInc'          3           [1.6];
+%     'boreQInc'          1           1.5;
+     'boreVInc'          1           [1.5 2 2.5];
     };
 
 numCompStatParams = size(compStatParams,1);
@@ -90,10 +93,10 @@ modelOpts.capNodes = 25; %number of approximation nodes for well capital
 %modelOpts.yrNodes = 10;
 modelOpts.minT = 50; %minimum number of years forward to simulate
 modelOpts.trendPts = 1; %maximum number of point used to compute trend expectations
-modelOpts.vtol = 1e-1; %value function convergence tolerance
+modelOpts.vtol = 1e-3; %value function convergence tolerance
 modelOpts.ttol = 1; %level trend convergence tolerance
-modelOpts.algorithm = 'newton';
-modelOpts.maxit = 2000;
+modelOpts.algorithm = 'funcit';
+modelOpts.maxit = 300;
 modelOpts.icSteps = 9999;
 %Loop through compStat cases
 runID.timeStamp = datestr(now,'yyyymmdd_HHMMSS');

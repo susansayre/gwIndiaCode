@@ -19,7 +19,7 @@ shrBore = P.shrBore0;
 % optset('dpsolve','algorithm','funcit');
 while valChange>P.iTol
     %find maxCost of farms that have already adopted.
-    lowCost = norminv(shrBore(t),P.investCostMean,P.investCostSD);
+    lowCost = norminv(shrBore(t)*P.inTruncProb+P.probBelow,P.investCostMean,P.investCostSD);
     %solve optimal stopping problem for this trend
     fspace = fundefn('lin',[modelOpts.heightNodes modelOpts.capNodes],[P.bottom shrBore(t)],[P.landHeight 1],[],[0;1]);
     scoord = funnode(fspace);
@@ -43,11 +43,11 @@ while valChange>P.iTol
         costDug = P.costDug_a*exp(P.costDug_b*lift);
         costBore = P.electricity*lift;
 
-        gwDug = (levelPath(t)>0).*max(0,(P.dDugInt-costDug)/P.dDugSlope);
-        gwBore = (levelPath(t)>0).*max(0,(P.dBoreInt-costBore)/P.dBoreSlope);
+        gwDug = (levelPath(t)>0).*max(0,(P.idDugInt-costDug)/P.idDugSlope);
+        gwBore = (levelPath(t)>0).*max(0,(P.idBoreInt-costBore)/P.idBoreSlope);
 
-        nbDug = P.dDugInt*gwDug - P.dDugSlope/2*gwDug.^2 - costDug.*gwDug;
-        nbBore = P.dBoreInt*gwBore - P.dBoreSlope/2*gwBore.^2 - costBore.*gwBore;
+        nbDug = P.idDugInt*gwDug - P.idDugSlope/2*gwDug.^2 - costDug.*gwDug;
+        nbBore = P.idBoreInt*gwBore - P.idBoreSlope/2*gwBore.^2 - costBore.*gwBore;
 
         gwUse = (1-shrBore(t))*gwDug + shrBore(t)*gwBore;
 
@@ -62,11 +62,11 @@ while valChange>P.iTol
     %find maxCost of farms that have adopted by end of period
     shrBore(t+1) = max(shrBore(t),max(spath(:,3,2).*spath(:,2,2)));
     invest = shrBore(t+1) - shrBore(t);
-    highCost = norminv(shrBore(t+1),P.investCostMean,P.investCostSD);
+    highCost = norminv(shrBore(t+1)*P.inTruncProb+P.probBelow,P.investCostMean,P.investCostSD);
     if highCost<=lowCost
         investCost = 0;
     else
-        investCost = P.investCostMean*invest+P.investCostSD*(normpdf(lowCost,P.investCostMean,P.investCostSD)-normpdf(highCost,P.investCostMean,P.investCostSD));
+        investCost = P.investCostMean*invest+P.investCostSD^2/P.inTruncProb*(normpdf(lowCost,P.investCostMean,P.investCostSD)-normpdf(highCost,P.investCostMean,P.investCostSD));
     end
 
     levelPath(t+1) = newLevel;
