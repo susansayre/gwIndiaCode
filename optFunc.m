@@ -22,9 +22,9 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
             %return upper and lower bounds on the control variables
             out1 = zeros(ns,dx); %lower bounds on all variables are 0;
             out2 = zeros(ns,dx);
-            out2(:,P.gwDugInd) = min(P.dDugInt/P.dDugSlope,(gwLevels-P.bottom)*P.AS); %we know the benefit is negative at higher amts
-            out2(:,P.gwBoreInd) = min((gwLevels-P.bottom)*P.AS,P.dBoreInt/P.dBoreSlope); %we know the benefit is negative at higher amts
-            out2(:,P.investInd) = (.99-s(:,P.sbInd));  %this implies converting all of the additional parcels
+            out2(:,P.gwDugInd) = min(P.idDugInt/P.idDugSlope,(gwLevels-P.bottom)*P.AS); %we know the benefit is negative at higher amts
+            out2(:,P.gwBoreInd) = min((gwLevels-P.bottom)*P.AS,P.idBoreInt/P.idBoreSlope); %we know the benefit is negative at higher amts
+            out2(:,P.investInd) = min(1,(1-s(:,P.sbInd)));  %this implies converting all of the additional parcels
 
    		case 'f'
             %return net benefits
