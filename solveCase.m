@@ -110,7 +110,7 @@ output.opt.optVal = (P.discount.^(0:length(output.opt.valPath)-1))*output.opt.va
 %extract and store necessary optimal management output
 
 % solve the adaptive expectations management problem
-output.aeOut = aeSolve2(P,modelOpts);
+output.aeOut = aeSolve(P,modelOpts);
 output.aeOut.pgain = (output.opt.val - output.aeOut.aeVal)/output.aeOut.aeVal;
 
 if ~isfield(modelOpts,'figureVisible')
