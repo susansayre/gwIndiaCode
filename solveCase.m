@@ -113,7 +113,11 @@ output.opt.optVal = (P.discount.^(0:length(output.opt.valPath)-1))*output.opt.va
 output.aeOut = aeSolve2(P,modelOpts);
 output.aeOut.pgain = (output.opt.val - output.aeOut.aeVal)/output.aeOut.aeVal;
 
-figure()
+if ~isfield(modelOpts,'figureVisible')
+    modelOpts.figureVisible = 'off';
+end
+
+figure('Visible',modelOpts.figureVisible)
 xTitles = {'Investment','Water (Traditional)','Water (Modern)'};
 sTitles = {'Share in Modern Agriculture','Pumping Lift'};
 sYlabel = {'%','meters'};

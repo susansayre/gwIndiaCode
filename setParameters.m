@@ -1,4 +1,5 @@
 clear all; close all; dbstop if error
+programTime = tic;
 
 P.dDugInt = 1; %set the q intercept of the dug well demand curve equal to 1. Implies traditional farms use 1 unit of water when it is free.
 parameterMat = {
@@ -140,3 +141,4 @@ end
 diary off
 
 save(['detailedOutput/' runID.timeStamp '/fullResults'])
+timeToComplete = toc(programTime)
