@@ -221,3 +221,5 @@ pip-log.txt
 detailedOutput/
 superceded/
 annualExpense/
+profile_results/
+*.zip

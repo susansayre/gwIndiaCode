@@ -9,7 +9,7 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
     %if any(x<0); keyboard; end;
 	
     if any(e)
-        error(['This function can''t handle shocks'])
+        error('This function can''t handle shocks')
     end
     
     ns = size(s,1);

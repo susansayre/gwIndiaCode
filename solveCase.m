@@ -162,8 +162,8 @@ end;
 if ~exist('detailedOutput','dir')
     mkdir('detailedOutput')
 end
-if ~exist(['detailedOutput/' parameterSetID.timeStamp],'dir')
-    mkdir(['detailedOutput/' parameterSetID.timeStamp])
+if ~exist(['detailedOutput/' parameterSetID{1}],'dir')
+    mkdir(['detailedOutput/' parameterSetID{1}])
 end
-save(['detailedOutput/' parameterSetID.timeStamp '/' parameterSetID.case ''])
-saveas(gcf,fullfile('detailedOutput',parameterSetID.timeStamp,[parameterSetID.case '_paths']),'epsc')
+save(['detailedOutput/' parameterSetID{1} '/' parameterSetID{2} ''])
+saveas(gcf,fullfile('detailedOutput',parameterSetID{1},[parameterSetID{2} '_paths']),'epsc')

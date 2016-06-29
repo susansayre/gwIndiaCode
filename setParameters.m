@@ -1,4 +1,10 @@
-clear all; close all; dbstop if error
+%clear all; close all; dbstop if error
+clear all; close all;
+initializeClock = tic;
+if isempty(gcp)
+    parpool
+end
+initializeTime = toc(initializeClock);
 programTime = tic;
 
 P.dDugInt = 1; %set the q intercept of the dug well demand curve equal to 1. Implies traditional farms use 1 unit of water when it is free.
@@ -89,30 +95,34 @@ csIndMat = gridmake(csInds);
 [cases,csParams] = size(csValues);
 
 %set model options that won't change across cs runs
-modelOpts.heightNodes = 25; %number of approximation nodes for levels, save one for maxDepth Dug
-modelOpts.capNodes = 25; %number of approximation nodes for well capital
+modelOpts.heightNodes = 30; %number of approximation nodes for levels, save one for maxDepth Dug
+modelOpts.capNodes = 30; %number of approximation nodes for well capital
 %modelOpts.yrNodes = 10;
 modelOpts.minT = 50; %minimum number of years forward to simulate
 modelOpts.trendPts = 1; %maximum number of point used to compute trend expectations
-modelOpts.vtol = 1e-3; %value function convergence tolerance
+modelOpts.vtol = 1e-5; %value function convergence tolerance
 modelOpts.ttol = 1; %level trend convergence tolerance
 modelOpts.algorithm = 'funcit';
 modelOpts.maxit = 300;
-modelOpts.icSteps = 9999;
 %Loop through compStat cases
-runID.timeStamp = datestr(now,'yyyymmdd_HHMMSS');
+runID = datestr(now,'yyyymmdd_HHMMSS');
 for ii=1:cases
     for jj=1:numCompStatParams
         %set parameter values based on compStat Case
-        eval(['P.' compStatParams{jj,1} '= csValues(ii,jj);'])
+        thisP = P;
+        eval(['thisP.' compStatParams{jj,1} '= csValues(ii,jj);'])
     end
+    paramCases{ii} = thisP;
+end
+
+parfor ii=1:cases
     %run problem for this parameter set
-    runID.case = ['case' num2str(ii)];
-    results{ii} = solveCase(P,modelOpts,runID);
+    thisID = ['case' num2str(ii)];
+    results{ii} = solveCase(paramCases{ii},modelOpts,{runID thisID});
     pgainAE(ii) = results{ii}.aeOut.pgain;
     pgainRE(ii) = results{ii}.reOut.pgain;
 end
-diary(['detailedOutput/' runID.timeStamp '/summaryLog.txt'])
+diary(['detailedOutput/' runID '/summaryLog.txt'])
 
 compStatParams
 csValues
@@ -140,5 +150,6 @@ end
 
 diary off
 
-save(['detailedOutput/' runID.timeStamp '/fullResults'])
+save(['detailedOutput/' runID '/fullResults'])
 timeToComplete = toc(programTime)
+initializeTime
