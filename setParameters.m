@@ -56,9 +56,9 @@ compStatParams = {
     %parameterName      %type       %inputs
     'AS'                1           [1];
 %     'boreQInc'          1           [1.5 2 2.5];
-%     'boreVInc'          3           [1.6];
+%     'boreVInc'          3           [2];
 %     'boreQInc'          1           1.5;
-     'boreVInc'          1           [1.5 2 2.5];
+%     'boreVInc'          1           [1.5 2 2.5];
     };
 
 numCompStatParams = size(compStatParams,1);
@@ -100,8 +100,8 @@ modelOpts.capNodes = 30; %number of approximation nodes for well capital
 %modelOpts.yrNodes = 10;
 modelOpts.minT = 50; %minimum number of years forward to simulate
 modelOpts.trendPts = 1; %maximum number of point used to compute trend expectations
-modelOpts.vtol = 1e-5; %value function convergence tolerance
-modelOpts.ttol = 1; %level trend convergence tolerance
+modelOpts.vtol = 1e-3; %value function convergence tolerance
+modelOpts.ttol = 1e-2; %level trend convergence tolerance
 modelOpts.algorithm = 'funcit';
 modelOpts.maxit = 300;
 %Loop through compStat cases
@@ -115,7 +115,7 @@ for ii=1:cases
     paramCases{ii} = thisP;
 end
 
-parfor ii=1:cases
+for ii=1:cases
     %run problem for this parameter set
     thisID = ['case' num2str(ii)];
     results{ii} = solveCase(paramCases{ii},modelOpts,{runID thisID});

@@ -1,4 +1,4 @@
-function reOutput = reSolve(P,modelOpts)
+function reOutput = reSolve(P,modelOpts,liftParams0)
 
 t = 1;
 model.func = 'optStoppingFunc';
@@ -21,16 +21,19 @@ while valChange>P.iTol
     %find maxCost of farms that have already adopted.
     lowCost = norminv(shrBore(t)*P.inTruncProb+P.probBelow,P.investCostMean,P.investCostSD);
     %solve optimal stopping problem for this trend
-    fspace = fundefn('lin',[modelOpts.heightNodes modelOpts.capNodes],[P.bottom shrBore(t)],[P.landHeight 1],[],[0;1]);
-    scoord = funnode(fspace);
-    snodes = gridmake(scoord);
     optset('dpsolve','showiters',0)
     
     iter = 0;
-    trendChange = 1;
-    while trendChange>P.trendTol
+    maxAbsChange = 10;
+    liftParams = liftParams0;
+    while maxAbsChange>P.trendTol
         iter = iter + 1;
-        model.params = {P};
+        
+        fspace = fundefn('lin',[modelOpts.heightNodes modelOpts.capNodes],[max(P.bottom,P.landHeight - liftParams.ss) shrBore(t)],[P.landHeight 1],[],[0;1]);
+        scoord = funnode(fspace);
+        snodes = gridmake(scoord);
+      
+        model.params = {P liftParams};
         figure()
         [c,s,v,x] = dpsolve(model,fspace,snodes);
         close()
@@ -51,7 +54,7 @@ while valChange>P.iTol
 
         gwUse = (1-shrBore(t))*gwDug + shrBore(t)*gwBore;
 
-        newLevel = updateLevels(levelPath(t),gwUse,P);
+        newLevels = updateLevels(levelPath(t),gwUse,P);
         newTrend = newLevel -levelPath(t);
         
         trendChange = abs(P.levelTrend-newTrend);

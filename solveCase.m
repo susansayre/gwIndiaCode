@@ -109,6 +109,7 @@ output.opt.valPath = feval(model.func,'f',output.opt.statePath,output.opt.contro
 output.opt.optVal = (P.discount.^(0:length(output.opt.valPath)-1))*output.opt.valPath;
 %extract and store necessary optimal management output
 
+save beforeAe
 % solve the adaptive expectations management problem
 output.aeOut = aeSolve(P,modelOpts);
 output.aeOut.pgain = (output.opt.val - output.aeOut.aeVal)/output.aeOut.aeVal;

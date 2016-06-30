@@ -24,16 +24,67 @@ shrBore = P.shrBore0;
 valChange = 1;
 
 iter = 0;
+liftCoeffs0 = [-P.levelTrend; 0];
+plotTrendVals = 0:1:100';
+fminsearchOptions = optimset('MaxFunEvals',50000,'MaxIter',50000);
 while valChange>P.iTol
     iter = iter+1;
+    
+    %keyboard
+    if t==1
+        %assume farmers believe the steady state will be the aquifer bottom and we will gradually approach it
+        liftParams.ss = P.landHeight-P.bottom;
+        liftParams.growthRate = -P.levelTrend;
+        liftParams.t0 = 0;
+        %won't be able to fit nu next time, so start with small coefficient vector
+        liftCoeffs0 = [liftParams.growthRate; liftParams.t0];
+        timeVals = [0];
+        liftPath = P.landHeight - P.h0;
+        liftParams.nu = 1/log2(liftParams.ss/liftPath);
+        error = 0;
+    else
+        %fit water trajectory conditions based on previous levels but let ss be free
+        if numel(liftPath)>5
+            liftPath = liftPath(2:end);
+            timeVals = timeVals(2:end);
+        end
+        [liftCoeffs,~,exf] = fminsearch(@glLiftFit,liftCoeffs0,fminsearchOptions,timeVals,liftPath,liftParams.nu);
+        if exf<1
+            keyboard
+        end
+        [error,K] = glLiftFit(liftCoeffs,timeVals,liftPath,liftParams.nu);
+        if error>1e-2
+            liftCoeffsHat = liftCoeffs0;
+            liftCoeffsHat(2) = t;
+            [liftCoeffsHat,errorHat,exf] = fminsearch(@glLiftFit,liftCoeffsHat,fminsearchOptions,timeVals,liftPath,liftParams.nu);
+            if errorHat<error && exf==1
+                liftCoeffs = liftCoeffsHat;
+                [error,K] = glLiftFit(liftCoeffs,timeVals,liftPath,liftParams.nu);
+            end
+        end
+        liftParams.ss = K;
+        if t>2
+            %had enought data to fit nu, use these coefficients as the starting point next time
+            liftParams.nu = liftCoeffs(3);
+            liftCoeffs0 = liftCoeffs;
+        else
+            %don't yet have real points to fit nu but will next time
+            liftCoeffs0 = [liftCoeffs; liftParams.nu];
+        end
+        liftParams.growthRate = liftCoeffs(1);
+        liftParams.t0 = liftCoeffs(2);     
+    end
+     
+    if liftParams.nu<0; keyboard; end;
+    aeOutput.predictedLifts(:,t) = liftParams.ss./((1+exp(-liftParams.growthRate*liftParams.nu*(plotTrendVals-liftParams.t0))).^(1/liftParams.nu));
     %find maxCost of farms that have already adopted.
     lowCost = norminv(shrBore(t)*P.inTruncProb+P.probBelow,P.investCostMean,P.investCostSD);
     %solve optimal stopping problem for this trend
     %convert state variable to be naturally bounded on [0,1].
-    fspace = fundefn('lin',[modelOpts.heightNodes modelOpts.capNodes],[P.bottom shrBore(t)],[P.landHeight 1],[],[0;1]);
+    fspace = fundefn('lin',[modelOpts.heightNodes modelOpts.capNodes],[max(P.bottom,P.landHeight-liftParams.ss) shrBore(t)],[P.landHeight 1],[],[0;1]);
     scoord = funnode(fspace);
     snodes = gridmake(scoord);
-    model.params = {P};
+    model.params = {P liftParams};
     optset('dpsolve','showiters',0)
     figure()
     [c,s,v,x] = dpsolve(model,fspace,snodes);
@@ -66,13 +117,15 @@ while valChange>P.iTol
     gwUse = (1-shrBore(t))*gwDug + shrBore(t)*gwBore;
     
     levelPath(t+1) = updateLevels(levelPath(t),gwUse,P);
-    P.levelTrend = levelPath(t+1)-levelPath(t);
+    
+    liftPath = [liftPath; P.landHeight - levelPath(t+1)];
+    timeVals = [timeVals; t];
     
     val(t,:) = [nbDug nbBore (1-shrBore(t))*nbDug + shrBore(t)*nbBore - investCost invest*P.convertTax];
     xPath(t,:) = [shrBore(t+1)-shrBore(t) gwDug gwBore];
 
     valChange = abs(val(t,3)*P.discount^(t-1));
-    fprintf ('%4i %10.1e\n',iter,valChange)
+    fprintf('%4i %10.1e %10.1e %10.2f %10.1e %10.1f \n',iter,valChange, error,liftParams.ss, liftParams.growthRate, liftParams.t0)
     t = t+1;
 
 end

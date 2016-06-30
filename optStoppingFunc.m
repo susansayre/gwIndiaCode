@@ -1,4 +1,4 @@
-function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P)
+function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P,liftParams)
 	
 %states are water levels, percentile rank among farms, and type
 %actions are invest (x=1) or don't invest (x=0)
@@ -34,8 +34,15 @@ function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P)
             
  		case 'g'
             %state transition
-            out1(:,1) = max(P.bottom,s(:,1)+P.levelTrend);
+            lift = max(eps,P.landHeight - s(:,1));
+            estTnext = liftParams.t0+1 - 1/(liftParams.growthRate*liftParams.nu)*(log(max(1+eps,liftParams.ss./lift).^liftParams.nu-1));
+            liftNext = liftParams.ss./((1+exp(-liftParams.growthRate*liftParams.nu*(estTnext-liftParams.t0))).^(1/liftParams.nu));
+            out1(:,1) = max(P.bottom,P.landHeight-liftNext);
             out1(:,2) = s(:,2);
             out1(:,3) = min(1,s(:,3)+x);
-	end
-		
+            if ~isreal(out1), keyboard, end
+    end
+
+    if any(isnan(out1));
+        keyboard
+    end
