@@ -1,4 +1,4 @@
-function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P,liftParams)
+function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P,liftType,liftData)
 	
 %states are water levels, percentile rank among farms, and type
 %actions are invest (x=1) or don't invest (x=0)
@@ -6,6 +6,15 @@ function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P,liftParams)
     ns = size(s,1);
     ds = size(s,2);
     dx = size(x,2);
+    
+    switch liftType
+        case 'logistic'
+            %s(:,1) gives the level
+            levels = s(:,1);
+        case 'path'
+            %s(:,1) gives the time until last level
+            levels = liftData(s(:,1));
+    end
 
     switch flag
 	
@@ -15,7 +24,6 @@ function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P,liftParams)
             
         case 'f'
             %return net benefits
-            levels = s(:,1);
             percCheaper = s(:,2); %state variable runs from 0 to 1 and identifies farm costs based on where in the interval the farm ranks
             costs = norminv(percCheaper,P.investCostMean,P.investCostSD);
             type = s(:,3); %0=dug, 1=bore
@@ -33,11 +41,18 @@ function [out1,out2,out3] = optStoppingFunc(flag,s,x,e,P,liftParams)
             out1 = min(max(repmat((1-type).*nbDug + type.*nbBore,1,dx) - x.*repmat(costs+P.convertTax,1,dx),-1/eps),1/eps);
             
  		case 'g'
-            %state transition
-            lift = max(eps,P.landHeight - s(:,1));
-            estTnext = liftParams.t0+1 - 1/(liftParams.growthRate*liftParams.nu)*(log(max(1+eps,liftParams.ss./lift).^liftParams.nu-1));
-            liftNext = liftParams.ss./((1+exp(-liftParams.growthRate*liftParams.nu*(estTnext-liftParams.t0))).^(1/liftParams.nu));
-            out1(:,1) = max(P.bottom,P.landHeight-liftNext);
+            switch liftType
+                case 'logistic'
+                    %state transition
+                    liftParams = liftData;
+                    lift = max(eps,P.landHeight - levels);
+                    estTnext = liftParams.t0+1 - 1/(liftParams.growthRate*liftParams.nu)*(log(max(1+eps,liftParams.ss./lift).^liftParams.nu-1));
+                    liftNext = liftParams.ss./((1+exp(-liftParams.growthRate*liftParams.nu*(estTnext-liftParams.t0))).^(1/liftParams.nu));
+                    out1(:,1) = max(P.bottom,P.landHeight-liftNext);
+                case 'path'
+                    out1(:,1) = min(s(:,1)+1,numel(liftData));
+            end
+                    
             out1(:,2) = s(:,2);
             out1(:,3) = min(1,s(:,3)+x);
             if ~isreal(out1), keyboard, end
