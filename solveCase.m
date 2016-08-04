@@ -12,7 +12,6 @@ P.lowCost = norminv(P.shrBore0*P.inTruncProb + P.probBelow,P.investCostMean,P.in
 %% solve the optimal management problem
 model.func = 'optFunc';
 model.discount = P.discount;
-model.params = {P};
 %model.horizon = 25;
 
 smin(P.levelInd) = P.bottom;
@@ -20,9 +19,9 @@ smin(P.levelInd) = P.bottom;
 smax(P.levelInd) = P.landHeight;
 smin(P.sbInd) = P.shrBore0;
 smax(P.sbInd) = 1;
-
 n = [modelOpts.capNodes modelOpts.heightNodes];
-fspace = fundefn('lin',n,smin,smax);
+model.ds = numel(n);
+fspace = fundefn('spli',n,smin,smax);
 minHeightDug = P.landHeight - P.maxDepthDug;
 %Add a dense grid of points close to maxDepthDug
 % heightBreaks = fspace.parms{P.levelInd}{1};
@@ -43,9 +42,10 @@ s = gridmake(snodes);
 lifts = P.landHeight - s(:,P.levelInd);
 costBore = P.electricityBore*lifts;
 costDug = P.electricityDug*lifts;
+P.dx = 3;
 
 states = length(s);
-[lb,ub] = feval(model.func,'b',s,ones(states,3),[],P);
+[lb,ub] = feval(model.func,'b',s,ones(states,3),[],[],[],[],P);
 
 xGuess(:,P.gwDugInd) = max((P.idDugInt - costDug)./P.idDugSlope,0);
 xGuess(:,P.gwBoreInd) = max((P.idBoreInt - costBore)./P.idBoreSlope,0);
@@ -58,41 +58,63 @@ xGuess(:,P.investInd) = newShr-s(:,P.sbInd);
 xGuess = max(lb,min(xGuess,ub));
 if isfield(model,'horizon'); finite = 1; else, finite = 0; end
 
-vGuess = feval(model.func,'f',s,xGuess,[],P)/(1-P.discount);
+vGuess = feval(model.func,'f',s,xGuess,[],[],[],[],P)/(1-P.discount);
 if ~finite
     %xGuess = .9*xGuess;
     %xGuess(:,P.investInd) = min(.5*ub(:,P.investInd),newShr-s(:,P.sbInd));
 end    
+
+gLB = min(lb);
+gUB = max(ub);
+
+model.dx = size(xGuess,2);
+P.dx = model.dx;
+model.params = {P};
 
 optset('dpsolve','algorithm',modelOpts.algorithm);
 optset('dpsolve','maxit',modelOpts.maxit);
 optset('dpsolve','showiters',1);
 optset('dpsolve','tol',modelOpts.vtol);
 optset('dpsolve','nres',1);
+optset('dpsolve','maxitncp',200);
 optset('dpsolve_vmax','maxbacksteps',0);
 optset('dpsolve_vmax','maxit',50);
 optset('dpsolve_vmax','lcpmethod','minmax');
 
+save beforeDPsolve
+
 %figure()
-[c,scoord,v,x,resid,exf] = dpsolveS2(model,fspace,s,vGuess,xGuess);
+%begin by solving on finite grid of x values to get close
+modelApx = model;
+xApproxNodes = [20 20 20];
+for ii=1:numel(xApproxNodes)
+    stepSize = (gUB(ii) - gLB(ii))/(xApproxNodes(ii)-1);
+    xNodes{ii} = (gLB(ii):stepSize:gUB(ii))';
+end
+modelApx.X = gridmake(xNodes);  
+optset('dpsolve','tol',.1);
+[~,~,v,x] = dpsolve3(modelApx,fspace,vGuess,xGuess);
+
+optset('dpsolve','tol',modelOpts.vtol);
+[c,sr,vr,xr,resid] = dpsolve3(model,fspace,v,x);
+max(abs(resid./vr))
 %[c,scoord,v,x] = dpsolve(model,fspace,s,vGuess,xGuess);
 
-output.opt.converged = exf;
+%output.opt.converged = exf;
 
-[shares,levels] = ndgrid(scoord{P.sbInd},scoord{P.levelInd});
+%[shares,levels] = ndgrid(scoord{P.sbInd},scoord{P.levelInd});
 s0(P.sbInd) = P.shrBore0;
 s0(P.levelInd) = P.h0;
-[ssim,xsim] = dpsimul(model,s0,modelOpts.minT,scoord,x);
-close
+[ssim,xsim] = dpsimul3(model,fspace,modelOpts.minT,s0,1,sr,vr,xr);
 
-output.opt.vFunc = v;
+%extract and store necessary optimal management output
+output.opt.vFunc = vr;
 output.opt.val = funeval(c,fspace,s0);
-output.opt.statePath = squeeze(ssim)';
-output.opt.controlPath = squeeze(xsim)';
+output.opt.statePath = squeeze(ssim);
+output.opt.controlPath = squeeze(xsim);
 optNb = netBen(output.opt.controlPath(:,P.gwDugInd),output.opt.controlPath(:,P.gwBoreInd),output.opt.controlPath(:,P.investInd),output.opt.statePath(:,P.levelInd),output.opt.statePath(:,P.sbInd),P);
 output.opt.valPath = [optNb.dug optNb.bore optNb.all];
 output.opt.optVal = (P.discount.^(0:length(output.opt.valPath)-1))*output.opt.valPath(:,3);
-%extract and store necessary optimal management output
 
 % save beforeAe
 % % solve the adaptive expectations management problem

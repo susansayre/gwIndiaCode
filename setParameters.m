@@ -109,6 +109,7 @@ modelOpts.vtol = 1e-2; %value function convergence tolerance
 modelOpts.ttol = 1e-2; %level trend convergence tolerance
 modelOpts.algorithm = 'funcit';
 modelOpts.maxit = 300;
+modelOpts.maxitncp = 300;
 %Loop through compStat cases
 runID = datestr(now,'yyyymmdd_HHMMSS');
 for ii=1:cases
