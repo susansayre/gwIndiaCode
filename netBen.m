@@ -14,13 +14,13 @@ function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,P)
     end
     
     %compute cost per unit for dug wells
-    costDug = min(P.costDug_a*exp(P.costDug_b*lift),10*P.idDugInt); %limit the cost to keep absurdly high costs from blowing up the problem
-    costBore = P.electricity*lift;
+    costDug = P.electricityDug*lift;
+    costBore = P.electricityBore*lift;
     newShr = invest + shrBore;
     
 
 lowCost = norminv(shrBore*P.inTruncProb + P.probBelow,P.investCostMean,P.investCostSD);
-highCost = norminv(newShr*P.inTruncProb  + P.probBelow,P.investCostMean,P.investCostSD);
+highCost = norminv(min(newShr*P.inTruncProb  + P.probBelow,1),P.investCostMean,P.investCostSD);
 
 aboveMaxInds = find(highCost>P.maxInvestCost); 
 highCost(aboveMaxInds) = P.maxInvestCost;
@@ -37,9 +37,9 @@ ddinvestCost_ddinvest = P.inTruncProb./normpdf(highCost,P.investCostMean,P.inves
     nb.dug = nbDug;
     nb.bore = nbBore;
     
-%     if  max(abs(nb.all))>=100;
-%         keyboard;
-%     end
+    if  any(isnan(nb.all))
+        keyboard;
+    end
     
    	dnb.dgwDug = (P.idDugInt-P.idDugSlope.*gwDug-costDug).*(1-shrBore);
     dnb.dgwBore = (P.idBoreInt-P.idBoreSlope.*gwBore-costBore).*shrBore;

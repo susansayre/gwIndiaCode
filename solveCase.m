@@ -5,24 +5,6 @@ P.h0 = P.landHeight - P.initialLift;
 
 P.investInd = 1; P.gwDugInd = 2; P.gwBoreInd = 3; P.sbInd = 1; P.levelInd = 2; P.yrsInd = 3;
 
-%Set inverse demand curve parameters for traditional farm
-P.idDugInt = 2*P.dDugInt; %normalizes values in terms of max benefit of free water on traditional farm
-P.idDugSlope = P.idDugInt/P.dDugInt;
-
-P.idBoreInt = 2*P.boreVInc/(P.dDugInt*P.boreQInc); %determines vertical intercept that guarantees max value = boreVInc * max value on trad farm
-P.idBoreSlope = P.idBoreInt/(P.dDugInt*P.boreQInc); %determines the slope consistent with pInt = P.idBoreInt and qInt = P.dDugInt*P.boreQInc
-
-%per unit cost function for dug wells has form C(h) = ae^(bh). Set so its
-%value is equal to the demand intercept at maxDepthDug and its slope is
-%equal to slopeMaxDepth at this same value.
-P.costDug_a = P.dDugInt*exp(-P.maxDepthDug*P.slopeMaxDepth/P.dDugInt); P.costDug_b = P.slopeMaxDepth/P.dDugInt;
-
-%add a cost as we near the bottom of the aquifer that ensures it is
-%uneconomic to pump water at the bottom of the aquifer.
-P.costBore_a = log(P.idBoreInt);
-P.costBore_b = P.slopeBoreZero*exp(-P.costBore_a);
-P.costBore_a = 0;
-
 P.inTruncProb = normcdf(P.maxInvestCost,P.investCostMean,P.investCostSD) - normcdf(P.minInvestCost,P.investCostMean,P.investCostSD);
 P.probBelow = normcdf(P.minInvestCost,P.investCostMean,P.investCostSD);
 P.lowCost = norminv(P.shrBore0*P.inTruncProb + P.probBelow,P.investCostMean,P.investCostSD);
@@ -59,8 +41,8 @@ s = gridmake(snodes);
 
 %make guess at the optimal actions
 lifts = P.landHeight - s(:,P.levelInd);
-costBore = P.electricity*lifts;
-costDug = P.costDug_a*exp(P.costDug_b*lifts);
+costBore = P.electricityBore*lifts;
+costDug = P.electricityDug*lifts;
 
 states = length(s);
 [lb,ub] = feval(model.func,'b',s,ones(states,3),[],P);
@@ -71,7 +53,9 @@ xGuess(:,P.gwBoreInd) = max((P.idBoreInt - costBore)./P.idBoreSlope,0);
 nb = netBen(xGuess(:,P.gwDugInd),xGuess(:,P.gwBoreInd),xGuess(:,P.investInd),s(:,P.levelInd),s(:,P.sbInd),P);
 deltaBen = nb.bore - nb.dug;
 newShr = max(s(:,P.sbInd),normcdf(deltaBen*P.discount/(1-P.discount),P.investCostMean,P.investCostSD));
+xGuess(:,P.investInd) = newShr-s(:,P.sbInd);
 
+xGuess = max(lb,min(xGuess,ub));
 if isfield(model,'horizon'); finite = 1; else, finite = 0; end
 
 vGuess = feval(model.func,'f',s,xGuess,[],P)/(1-P.discount);
@@ -105,40 +89,52 @@ output.opt.vFunc = v;
 output.opt.val = funeval(c,fspace,s0);
 output.opt.statePath = squeeze(ssim)';
 output.opt.controlPath = squeeze(xsim)';
-output.opt.valPath = feval(model.func,'f',output.opt.statePath,output.opt.controlPath,[],P);
-output.opt.optVal = (P.discount.^(0:length(output.opt.valPath)-1))*output.opt.valPath;
+optNb = netBen(output.opt.controlPath(:,P.gwDugInd),output.opt.controlPath(:,P.gwBoreInd),output.opt.controlPath(:,P.investInd),output.opt.statePath(:,P.levelInd),output.opt.statePath(:,P.sbInd),P);
+output.opt.valPath = [optNb.dug optNb.bore optNb.all];
+output.opt.optVal = (P.discount.^(0:length(output.opt.valPath)-1))*output.opt.valPath(:,3);
 %extract and store necessary optimal management output
 
-save beforeAe
-% solve the adaptive expectations management problem
-output.aeOut = aeSolve(P,modelOpts);
-output.aeOut.pgain = (output.opt.val - output.aeOut.aeVal)/output.aeOut.aeVal;
-
-if ~isfield(modelOpts,'figureVisible')
-    modelOpts.figureVisible = 'off';
-end
-
-figure('Visible',modelOpts.figureVisible)
-xTitles = {'Investment','Water (Traditional)','Water (Modern)'};
+% save beforeAe
+% % solve the adaptive expectations management problem
+% output.aeOut = aeSolve(P,modelOpts);
+% output.aeOut.pgain = (output.opt.val - output.aeOut.aeVal)/output.aeOut.aeVal;
+% 
+% if ~isfield(modelOpts,'figureVisible')
+%     modelOpts.figureVisible = 'off';
+% end
+% 
+%figure('Visible',modelOpts.figureVisible)
+xTitles = {'Investment','(Traditional)','(Modern)'};
 sTitles = {'Share in Modern Agriculture','Pumping Lift'};
 sYlabel = {'%','meters'};
+% 
+ save beforeRe
+% % solve the "rational" expectations management problem
+%  output.reOut = reSolve(P,modelOpts,output.aeOut.statePath(:,2));
+%  output.reOut.pgain = (output.opt.val - output.reOut.reVal)/output.reOut.reVal;
 
-% solve the "rational" expectations management problem
- output.reOut = reSolve(P,modelOpts);
+ output.reOut = reSolve(P,modelOpts,output.opt.statePath(:,2));
+ %output.reOut = reSolve(P,modelOpts,P.h0*ones(100,1));
  output.reOut.pgain = (output.opt.val - output.reOut.reVal)/output.reOut.reVal;
- 
- yrs = min([length(output.reOut.controlPath) length(output.aeOut.controlPath) length(output.opt.controlPath)]);
 
+ yrs = min([length(output.reOut.controlPath) length(output.opt.controlPath)]);
+
+ byFarmFig = figure();
  for ii=2:3; 
-    subplot(2,2,ii+1); 
-    plot(output.aeOut.controlPath(1:yrs,ii),'--'); 
+    subplot(2,2,ii-1); 
     hold on; 
     plot(output.reOut.controlPath(1:yrs,ii),'-.'); 
     plot(output.opt.controlPath(1:yrs,ii)); 
-    title(xTitles{ii});
-    legend('Common Property AE','Common Property RE','Optimal Management')
+    title(['Water ' xTitles{ii}]);
+    subplot(2,2,ii+1);
+    hold on;
+    plot(output.reOut.valPath(1:yrs,ii-1),'-.'); 
+    plot(output.opt.valPath(1:yrs,ii-1));
+    title(['Current Payoff ' xTitles{ii}])
+   
 end; 
 
+totFig = figure();
 for ii=1:2; 
     subplot(2,2,ii); 
     if ii==2
@@ -146,16 +142,24 @@ for ii=1:2;
     else
         constant = 0; slope=1;
     end
-    plot(constant+slope*output.aeOut.statePath(1:yrs,ii),'--'); 
     hold on; 
     plot(constant+slope*output.reOut.statePath(1:yrs,ii),'-.'); 
     plot(constant+slope*output.opt.statePath(1:yrs,ii)); 
     title(sTitles{ii});
     ylabel(sYlabel{ii});
-    legend('Common Property AE','Common Property RE','Optimal Management')
 end;
 
+subplot(2,2,3); 
+hold on; 
+plot(output.reOut.statePath(1:yrs,1).*output.reOut.controlPath(1:yrs,3)+(1-output.reOut.statePath(1:yrs,1)).*output.reOut.controlPath(1:yrs,2),'-.'); 
+plot(output.opt.statePath(1:yrs,1).*output.opt.controlPath(1:yrs,3)+(1-output.opt.statePath(1:yrs,1)).*output.opt.controlPath(1:yrs,2)); 
+title('Total Water Use');
 
+subplot(2,2,4); 
+hold on; 
+plot(output.reOut.valPath(1:yrs,3),'-.'); 
+plot(output.opt.valPath(1:yrs,3)); 
+title('Total Current Value');
 
 %% compare outputs and return key results
 
@@ -166,5 +170,7 @@ end
 if ~exist(['detailedOutput/' parameterSetID{1}],'dir')
     mkdir(['detailedOutput/' parameterSetID{1}])
 end
+saveas(totFig,fullfile('detailedOutput',parameterSetID{1},[parameterSetID{2} '_AggPaths']),'epsc')
+saveas(byFarmFig,fullfile('detailedOutput',parameterSetID{1},[parameterSetID{2} '_FarmPaths']),'epsc')
+clear totFig byFarmFig
 save(['detailedOutput/' parameterSetID{1} '/' parameterSetID{2} ''])
-saveas(gcf,fullfile('detailedOutput',parameterSetID{1},[parameterSetID{2} '_paths']),'epsc')

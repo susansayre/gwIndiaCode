@@ -22,9 +22,13 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
             %return upper and lower bounds on the control variables
             out1 = zeros(ns,dx); %lower bounds on all variables are 0;
             out2 = zeros(ns,dx);
-            out2(:,P.gwDugInd) = min(P.idDugInt/P.idDugSlope,(gwLevels-P.bottom)*P.AS); %we know the benefit is negative at higher amts
-            out2(:,P.gwBoreInd) = min((gwLevels-P.bottom)*P.AS,P.idBoreInt/P.idBoreSlope); %we know the benefit is negative at higher amts
+            lift = P.landHeight-gwLevels;
+            out2(:,P.gwDugInd) = P.dugMax*(1-min(1,max(0,lift-P.depthFullD))); 
             out2(:,P.investInd) = min(1,(1-s(:,P.sbInd)));  %this implies converting all of the additional parcels
+            
+            if any(find(out2<out1))
+                keyboard
+            end
 
    		case 'f'
             %return net benefits
@@ -80,5 +84,8 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
             if any(dgg)
                 error('have nto coded placement of second derivatives for gw levels')
             end
-	end
-		
+    end
+	
+    if any(isnan(out1))
+        keyboard
+    end
