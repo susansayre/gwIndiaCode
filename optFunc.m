@@ -24,6 +24,7 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
             out2 = zeros(ns,dx);
             lift = P.landHeight-gwLevels;
             out2(:,P.gwDugInd) = P.dugMax*(1-min(1,max(0,lift-P.depthFullD))); 
+            out2(:,P.gwBoreInd) = min(P.boreMax,(gwLevels-P.bottom)./max(eps,shrBore)*P.AS); %our problems are currently parameterized so that only the bore wells will be active when we near the aquifer bottom
             out2(:,P.investInd) = min(1,(1-s(:,P.sbInd)));  %this implies converting all of the additional parcels
             
             if any(find(out2<out1))
