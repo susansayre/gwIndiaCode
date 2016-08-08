@@ -21,7 +21,7 @@ smin(P.sbInd) = P.shrBore0;
 smax(P.sbInd) = 1;
 n = [modelOpts.capNodes modelOpts.heightNodes];
 model.ds = numel(n);
-fspace = fundefn('spli',n,smin,smax);
+fspace = fundefn('lin',n,smin,smax);
 minHeightDug = P.landHeight - P.maxDepthDug;
 %Add a dense grid of points close to maxDepthDug
 % heightBreaks = fspace.parms{P.levelInd}{1};
@@ -45,7 +45,7 @@ costDug = P.electricityDug*lifts;
 P.dx = 3;
 
 states = length(s);
-[lb,ub] = feval(model.func,'b',s,ones(states,3),[],[],[],[],P);
+[lb,ub] = feval(model.func,'b',s,ones(states,3),[],[],[],P);
 
 xGuess(:,P.gwDugInd) = max((P.idDugInt - costDug)./P.idDugSlope,0);
 xGuess(:,P.gwBoreInd) = max((P.idBoreInt - costBore)./P.idBoreSlope,0);
@@ -58,7 +58,7 @@ xGuess(:,P.investInd) = newShr-s(:,P.sbInd);
 xGuess = max(lb,min(xGuess,ub));
 if isfield(model,'horizon'); finite = 1; else, finite = 0; end
 
-vGuess = feval(model.func,'f',s,xGuess,[],[],[],[],P)/(1-P.discount);
+vGuess = feval(model.func,'f',s,xGuess,[],[],[],P)/(1-P.discount);
 if ~finite
     %xGuess = .9*xGuess;
     %xGuess(:,P.investInd) = min(.5*ub(:,P.investInd),newShr-s(:,P.sbInd));
@@ -76,7 +76,7 @@ optset('dpsolve','maxit',modelOpts.maxit);
 optset('dpsolve','showiters',1);
 optset('dpsolve','tol',modelOpts.vtol);
 optset('dpsolve','nres',1);
-optset('dpsolve','maxitncp',200);
+optset('dpsolve','maxitncp',1);
 optset('dpsolve_vmax','maxbacksteps',0);
 optset('dpsolve_vmax','maxit',50);
 optset('dpsolve_vmax','lcpmethod','minmax');
@@ -93,10 +93,10 @@ for ii=1:numel(xApproxNodes)
 end
 modelApx.X = gridmake(xNodes);  
 optset('dpsolve','tol',.1);
-[~,~,v,x] = dpsolve3(modelApx,fspace,vGuess,xGuess);
+[~,~,v,x] = dpsolve(modelApx,fspace,vGuess,xGuess);
 
 optset('dpsolve','tol',modelOpts.vtol);
-[c,sr,vr,xr,resid] = dpsolve3(model,fspace,v,x);
+[c,sr,vr,xr,resid] = dpsolve(model,fspace,v,x);
 max(abs(resid./vr))
 %[c,scoord,v,x] = dpsolve(model,fspace,s,vGuess,xGuess);
 
@@ -105,7 +105,7 @@ max(abs(resid./vr))
 %[shares,levels] = ndgrid(scoord{P.sbInd},scoord{P.levelInd});
 s0(P.sbInd) = P.shrBore0;
 s0(P.levelInd) = P.h0;
-[ssim,xsim] = dpsimul3(model,fspace,modelOpts.minT,s0,1,sr,vr,xr);
+[ssim,xsim] = dpsimul(model,fspace,modelOpts.minT,s0,1,sr,vr,xr);
 
 %extract and store necessary optimal management output
 output.opt.vFunc = vr;

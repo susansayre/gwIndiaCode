@@ -1,10 +1,10 @@
-function [out1,out2,out3] = optFunc(flag,s,x,~,~,~,e,P)
+function [out1,out2,out3] = optFunc(flag,s,x,~,~,e,P)
 	gwLevels = s(:,P.levelInd);
     if any(gwLevels<P.bottom); keyboard; end;
 	shrBore = s(:,P.sbInd);
     
     if ~isempty(x)
-        investmentAmts = x(:,P.investInd);
+        investmentAmts = max(0,x(:,P.investInd));
         gwDug = max(0,x(:,P.gwDugInd));
         gwBore = max(0,x(:,P.gwBoreInd));
     end
@@ -27,7 +27,7 @@ function [out1,out2,out3] = optFunc(flag,s,x,~,~,~,e,P)
             out2 = zeros(ns,P.dx);
             lift = P.landHeight-gwLevels;
             out2(:,P.gwDugInd) = P.dugMax*(1-min(1,max(0,lift-P.depthFullD))); 
-            out2(:,P.gwBoreInd) = min(P.boreMax,(gwLevels-P.bottom)./max(eps,shrBore)*P.AS); %our problems are currently parameterized so that only the bore wells will be active when we near the aquifer bottom
+            out2(:,P.gwBoreInd) = min(P.boreMax,((gwLevels-P.bottom)*P.AS+P.inflow)./(1-P.returnFlow)./max(eps,s(:,P.sbInd))); %our problems are currently parameterized so that only the bore wells will be active when we near the aquifer bottom
             out2(:,P.investInd) = min(1,(1-s(:,P.sbInd)));  %this implies converting all of the additional parcels
             
             if any(find(out2<out1))

@@ -1,12 +1,6 @@
 function reOutput = reSolve(P,modelOpts,initialPath)
 
 t = 1;
-model.func = 'optStoppingFunc';
-model.discount = P.discount;
-model.actions = [0;1];
-model.discretestates = 3;
-model.e = 0;
-model.w = 1;
 
 npvTol = 1e-3;
 P.trendTol = 1e-1;
@@ -24,10 +18,11 @@ while pathChange>P.trendTol
     costDug = P.electricityDug*lift;
     costBore = P.electricityBore*lift;
 
-    maxDugDemand = max(0,(P.idDugInt-costDug)./P.idDugSlope);
-    dugUB = P.dugMax*(1-min(1,max(0,lift-P.depthFullD)));
-    gwDug = min(maxDugDemand,dugUB);
-    gwBore = min(max(0,(P.idBoreInt-costBore)./P.idBoreSlope),P.boreMax);
+    [lb,ub] = optFunc('b',[ones(size(assumedPath)) assumedPath],[],[],[],[],P);
+    maxDugDemand = max(lb(:,P.gwDugInd),(P.idDugInt-costDug)./P.idDugSlope);
+    gwDug = min(maxDugDemand,ub(:,P.gwDugInd));
+    
+    gwBore = min(max(lb(:,P.gwBoreInd),(P.idBoreInt-costBore)./P.idBoreSlope),ub(:,P.gwBoreInd));
 
     nbDug = P.idDugInt*gwDug - P.idDugSlope/2*gwDug.^2 - costDug.*gwDug;
     nbBore = P.idBoreInt*gwBore - P.idBoreSlope/2*gwBore.^2 - costBore.*gwBore;
