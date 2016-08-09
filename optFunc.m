@@ -2,6 +2,7 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
 	gwLevels = s(:,P.levelInd);
     if any(gwLevels<P.bottom); keyboard; end;
 	shrBore = s(:,P.sbInd);
+    indInvestCostFrac = s(:,P.icInd);
 	investmentAmts = x(:,P.investInd);
 	gwDug = max(0,x(:,P.gwDugInd));
     gwBore = max(0,x(:,P.gwBoreInd));
@@ -33,7 +34,7 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
 
    		case 'f'
             %return net benefits
-			[b, dnb, ddnb] = netBen(gwDug,gwBore,investmentAmts,gwLevels,shrBore,P);
+			[b, dnb, ddnb] = netBen(gwDug,gwBore,investmentAmts,gwLevels,shrBore,indInvestCostFrac,P);
 %             
 %             deltaGW = 1e-4;
 %             deltaInvest = 1e-6;
@@ -71,14 +72,22 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
 			[g,dg,dgg] = updateLevels(gwLevels,gwExtractionAmts,P);
 			out1(:,P.sbInd) = shrBore+investmentAmts;
             out1(:,P.levelInd) = g;
+            out1(:,P.icInd) = (1-P.icDecayRate).*indInvestCostFrac;
             
             %return derivatives of next period states with respect to actions
             out2(:,P.sbInd,P.investInd) = ones(ns,1); 
             out2(:,P.sbInd,P.gwDugInd)= zeros(ns,1); %extraction doesn't affect capital
             out2(:,P.sbInd,P.gwBoreInd)= zeros(ns,1); %extraction doesn't affect capital
+
             out2(:,P.levelInd,P.gwDugInd) = dg.*(1-shrBore);
             out2(:,P.levelInd,P.gwBoreInd) = dg.*shrBore;
             out2(:,P.levelInd,P.investInd) = zeros(ns,1); %investment doesn't affect levels directly
+
+            %since the extra investment cost declines exogenously, no
+            %actions affect this level
+            out2(:,P.icInd,P.investInd) = zeros(ns,1);
+            out2(:,P.icInd,P.gwDugInd)= zeros(ns,1); 
+            out2(:,P.icInd,P.gwBoreInd)= zeros(ns,1); 
 			
             %return second derivatives of next period states with respect to actions
             out3 = zeros(ns,ds,dx,dx); %initialize to zero and add only as needed

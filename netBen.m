@@ -1,4 +1,4 @@
-function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,P)
+function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,indInvestCostFrac,P)
     %this function returns the aggregate net benefit as a function of gw
     %extraction (which now needs to be a two dimensional vector),
     %investment in regime switching, gwLevels, and the current share of
@@ -34,6 +34,7 @@ ddinvestCost_ddinvest = P.inTruncProb./normpdf(highCost,P.investCostMean,P.inves
     nbBore = P.idBoreInt*gwBore - P.idBoreSlope/2*gwBore.^2 - costBore.*gwBore;
     
     nb.all = nbDug.*(1-shrBore) + nbBore.*shrBore - investCost - P.investCostPenalty*invest.^2;
+    %nb.all = nb.all - extraIC*invest;
     nb.dug = nbDug;
     nb.bore = nbBore;
     
@@ -44,6 +45,7 @@ ddinvestCost_ddinvest = P.inTruncProb./normpdf(highCost,P.investCostMean,P.inves
    	dnb.dgwDug = (P.idDugInt-P.idDugSlope.*gwDug-costDug).*(1-shrBore);
     dnb.dgwBore = (P.idBoreInt-P.idBoreSlope.*gwBore-costBore).*shrBore;
     dnb.di = -dinvestCost_dinvest -2*P.investCostPenalty*invest;
+    %dnb.di = dnb.di - extraIC;
     ddnb.ddgwDug = -P.idDugSlope*ones(size(gwLevel)).*(1-shrBore);
     ddnb.ddgwBore = -P.idBoreSlope*ones(size(gwLevel)).*shrBore;
     ddnb.dii = -ddinvestCost_ddinvest - 2*P.investCostPenalty;

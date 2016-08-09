@@ -113,7 +113,7 @@ sYlabel = {'%','meters'};
 %  output.reOut = reSolve(P,modelOpts,output.aeOut.statePath(:,2));
 %  output.reOut.pgain = (output.opt.val - output.reOut.reVal)/output.reOut.reVal;
 
- output.reOut = reSolve(P,modelOpts,output.opt.statePath(:,2));
+ output.reOut = reSolve(P,modelOpts,output.opt.statePath);
  %output.reOut = reSolve(P,modelOpts,P.h0*ones(100,1));
  output.reOut.pgain = (output.opt.val - output.reOut.reVal)/output.reOut.reVal;
 

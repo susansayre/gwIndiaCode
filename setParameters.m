@@ -12,32 +12,34 @@ parameterMat = {
     %1=ParameterName    2=ParameterDescription      					3=ParameterUnits        %4=BaseValue		%Note source following % sign
     'discount'          'discount factor (npv = discount^t*cv)'                 '%'             .95;
     'idDugInt'          'max MB of water'                                       'kRs/kmc'      .3*1.0357;          %2.5 k(m^3) increases rev from 7.5 kRs to 10 kRs time 30% profit from gross rev
-    'idDugSlope'        ''                                                      'kRs/kmc/kmc'   .3*.0429;
+    'idDugSlope'        ''                                                      'kRs/kmc/kmc'   .3*.0429;           %fit a curve to lots of point ranging from 0 to 5 k m^3
     'dugMax'            'max vol with dug well that doesn''t go dry'            'kmc/ha'        3;
     'idBoreInt'          'max MB of water'                                       'kRs/kmc'      .3*0.9294;          %2.5 k(m^3) increases rev from 7.5 kRs to 10 kRs time 30% profit from gross rev
-    'idBoreSlope'        ''                                                      'kRs/kmc/kmc'   .3*.0121;
+    'idBoreSlope'        ''                                                      'kRs/kmc/kmc'   .3*.0121;          %fit a curve to lots of points ranging from 0 to 15 k m^3
     'boreMax'            'max vol with dug well that doesn''t go dry'            'kmc/ha'        15;                %this max is an artificial way of setting the MB to zero above this level 
     'electricityBore'   'cost per vol per m'                                    'kRs/kmc/m'     .012;
-    'electricityDug'    ''                                                      '$/m/vol'       0;
+    'electricityDug'    ''                                                      'kRs/kmc/m'       0;
     'landHeight'        'Initial Surface Level'                                 'm'             15;
     'minLift'           ''                                                      'm'             .5;
-    'initialLift'       'Initial m of pumping'                                  'm'             2;
+    'initialLift'       'Initial m of pumping'                                  'm'             2; %comparative statics on this
     'bottom'            'Aquifer bottom'                                        'm'             -100;
     'inflow'            'Natural inflow per year'                               'kmc/ha/yr'        2;
     'returnFlow'        'Share of applied water that percolates back'           '%'             .35;
     'AS'                'area*storativity (vol released from 1 m of aquifer)'   'kmc/m/ha'       1.6;
-    'maxInvest'         'max investment possible in one year'                   '%'             .1;
-    'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             0;
+ %   'maxInvest'         'max investment possible in one year'                   '%'             .1;
+ %   'levelTrend'        'linear level change rate/yr for use in AE model'       'm'             0;
     'shrBore0'          'initial shr in bore wells'                             '%'             .05;
     'maxDepthDug'       'max depth for a dug well'                              'm'             8;              %paper about poverty
-    'investCostMean'    'mean of investment cost distribution'                  'kRs/ha'        25;            %guess
-    'investCostSD'      'standarized SD of investment cost'                     '$'             4.5;             %guess
+    'investCostMean'    'mean of investment cost distribution'                  'kRs/ha'        22.5;            %from Vis
+    'investCostSD'      'standarized SD of investment cost'                     '$'             5;             %guess
     'convertTax'        'tax paid for drilling a well/converting'               '$/parcel'      0;   
     'slopeBoreZero'     'slope of the penalty for approaching bottom at zero'   ''              0;
     'minInvestCost'     'minimum value in the investCost distribution'          '$/parcel'      5;
-    'maxInvestCost'     'maximum value in the investCost distribution'          '$/parcel'      40;
-    'investCostPenalty' 'penalty paid for high investment in one period'        '$/shr/shr'     0;
-    'depthFullD'        'depth above which dug wells never go dry'              'm'             5;
+    'maxInvestCost'     'maximum value in the investCost distribution'          '$/parcel'      100;
+%    'investCostPenalty' 'penalty paid for high investment in one period'        '$/shr/shr'     100;
+    'liftFullD'         'lift below which dug wells never go dry'               'm'             5; 
+    'icDecayRate'       'rate at which farm specific inv cost decays'           '%'             .1;
+    'investCostBase'    'non time varying constant invest cost'                 '$/parcel'      11;
     };
 
 numParams = size(parameterMat,1);
@@ -63,7 +65,8 @@ compStatParams = {
 %    'AS'                3           [1];
 %    'electrictyDug'        1        [0 .05 .1 .15];
 %    'investCostMean'       1        [5 10 15];
-    'inflow'               1        [2 4 6 8 10];
+%    'inflow'               1        [2 4 6 8 10];
+     'inflow'               1        2.34;
     };
 
 numCompStatParams = size(compStatParams,1);
@@ -104,9 +107,9 @@ modelOpts.heightNodes = 30; %number of approximation nodes for levels, save one 
 modelOpts.capNodes = 30; %number of approximation nodes for well capital
 %modelOpts.yrNodes = 10;
 modelOpts.minT = 100; %minimum number of years forward to simulate
-modelOpts.trendPts = 1; %maximum number of point used to compute trend expectations
 modelOpts.vtol = 1e-2; %value function convergence tolerance
 modelOpts.ttol = 1e-2; %level trend convergence tolerance
+modelOpts.stol = 1e-3; %invest path trend convergence tolerance
 modelOpts.algorithm = 'funcit';
 modelOpts.maxit = 300;
 %Loop through compStat cases
