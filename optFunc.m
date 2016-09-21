@@ -2,7 +2,7 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
 	gwLevels = s(:,P.levelInd);
     if any(gwLevels<P.bottom); keyboard; end;
 	shrBore = s(:,P.sbInd);
-    indInvestCostFrac = s(:,P.icInd);
+    invCostC = s(:,P.icInd);
 	investmentAmts = x(:,P.investInd);
 	gwDug = max(0,x(:,P.gwDugInd));
     gwBore = max(0,x(:,P.gwBoreInd));
@@ -24,9 +24,10 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
             out1 = zeros(ns,dx); %lower bounds on all variables are 0;
             out2 = zeros(ns,dx);
             lift = P.landHeight-gwLevels;
-            out2(:,P.gwDugInd) = P.dugMax*(1-min(1,max(0,lift-P.depthFullD))); 
-            out2(:,P.gwBoreInd) = min(P.boreMax,(gwLevels-P.bottom)./max(eps,shrBore)*P.AS); %our problems are currently parameterized so that only the bore wells will be active when we near the aquifer bottom
-            out2(:,P.investInd) = min(1,(1-s(:,P.sbInd)));  %this implies converting all of the additional parcels
+            out2(:,P.gwDugInd) = P.dugMax*(1-min(1,max(0,lift-P.liftFullD)/(P.maxDepthDug-P.liftFullD)));
+            boreMax = P.boreMax - P.boreLimitDecline*max(0,lift-P.liftFullD); %ift lift is smaller than liftFullD, diff will be negative and we won't change limit
+            out2(:,P.gwBoreInd) = min(boreMax,(gwLevels-P.bottom)./max(eps,shrBore)*P.AS); %our problems are currently parameterized so that only the bore wells will be active when we near the aquifer bottom
+            out2(:,P.investInd) = min(P.investLimit,(P.maxShr-s(:,P.sbInd)));  %this implies converting all of the additional parcels
             
             if any(find(out2<out1))
                 keyboard
@@ -34,7 +35,7 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
 
    		case 'f'
             %return net benefits
-			[b, dnb, ddnb] = netBen(gwDug,gwBore,investmentAmts,gwLevels,shrBore,indInvestCostFrac,P);
+			[b, dnb, ddnb] = netBen(gwDug,gwBore,investmentAmts,gwLevels,shrBore,invCostC,P);
 %             
 %             deltaGW = 1e-4;
 %             deltaInvest = 1e-6;
@@ -54,6 +55,9 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
             out2(:,P.gwDugInd) = dnb.dgwDug;
             out2(:,P.gwBoreInd) = dnb.dgwBore;
             
+            if any(isnan(out2)); keyboard; end;
+            out2 = max(-1e5,min(out2,1e5));
+            
             out3(:,P.investInd,P.investInd)=ddnb.dii;
             out3(:,P.investInd,P.gwDugInd) = ddnb.dgwDugdi;
             out3(:,P.investInd,P.gwBoreInd) = ddnb.dgwBoredi;
@@ -72,7 +76,7 @@ function [out1,out2,out3] = optFunc(flag,s,x,e,P)
 			[g,dg,dgg] = updateLevels(gwLevels,gwExtractionAmts,P);
 			out1(:,P.sbInd) = shrBore+investmentAmts;
             out1(:,P.levelInd) = g;
-            out1(:,P.icInd) = (1-P.icDecayRate).*indInvestCostFrac;
+            out1(:,P.icInd) = (1-P.icDecayRate).*invCostC;
             
             %return derivatives of next period states with respect to actions
             out2(:,P.sbInd,P.investInd) = ones(ns,1); 

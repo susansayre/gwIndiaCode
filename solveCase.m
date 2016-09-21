@@ -1,34 +1,74 @@
 function [output] = solveCase(P,modelOpts,parameterSetID)
 
-%% compute derived parameter values
-P.h0 = P.landHeight - P.initialLift;
+%check whether the case is investment limited
+if strfind(parameterSetID{2},'niP0')
+    solveType = 'niP0';
+elseif strfind(parameterSetID{2},'niPEnd')
+    solveType = 'niPEnd';
+elseif strfind(parameterSetID{2},'niPAvg')
+    solveType = 'niPAvg';
+else
+    solveType = 'regular';
+end
 
-P.investInd = 1; P.gwDugInd = 2; P.gwBoreInd = 3; P.sbInd = 1; P.levelInd = 2; P.yrsInd = 3;
+if strcmp(solveType,'regular')
+    %% compute derived parameter values
+    P.h0 = P.landHeight - P.initialLift;
 
-P.inTruncProb = normcdf(P.maxInvestCost,P.investCostMean,P.investCostSD) - normcdf(P.minInvestCost,P.investCostMean,P.investCostSD);
-P.probBelow = normcdf(P.minInvestCost,P.investCostMean,P.investCostSD);
-P.lowCost = norminv(P.shrBore0*P.inTruncProb + P.probBelow,P.investCostMean,P.investCostSD);
+    P.investInd = 1; P.gwDugInd = 2; P.gwBoreInd = 3; P.sbInd = 1; P.levelInd = 2; P.icInd = 3; P.yrsInd = 3;
 
+%     %These calculations won't work right if the invest cost interval isn't infinite
+%     initBoreBen = P.idBoreInt*P.boreMax - P.idBoreSlope/2*P.boreMax.^2 - P.electricityBore.*P.initialLift.*P.boreMax;
+%     initDugBen = P.idDugInt*P.dugMax - P.idDugSlope/2*P.dugMax.^2 - P.electricityDug.*P.initialLift.*P.dugMax;
+% 
+% %     P.investCostBase = (P.discount*(initBoreBen - initDugBen)-P.investCostNow*(1-P.discount))/(P.discount*P.icDecayRate); %set the common investment to facilitate the current share being optimal
+% %     P.costIn = P.investCostNow - P.investCostBase; %the individual cost component for the last farm who (priv) optimally invested last period
+% % 
+% %     P.investCostMean = P.costIn - P.investCostSD*norminv(P.shrBore0);
+% % 
+% %     if P.costIn<0
+% %         warning('Individual investment cost shocks are currently negative, might imply a parameter problem')
+% %     end
+% 
+    P.inTruncProb = normcdf(P.maxInvestCost,P.investCostMean,P.investCostSD) - normcdf(P.minInvestCost,P.investCostMean,P.investCostSD);
+    P.probBelow = normcdf(P.minInvestCost,P.investCostMean,P.investCostSD);
+    P.lowCost = norminv(P.shrBore0*P.inTruncProb + P.probBelow,P.investCostMean,P.investCostSD);
+
+%     if P.inTruncProb<1 || P.probBelow>0
+%         error('The optimal in calcs assume no truncation')
+%     end
+    
+    output.P = P;
+end
+
+%solve the rational expectations problem
+ output.reOut = reSolve(P,modelOpts,P.h0*ones(modelOpts.minT,1));
 %% solve the optimal management problem
 model.func = 'optFunc';
 model.discount = P.discount;
 model.params = {P};
 %model.horizon = 25;
 
-smin(P.levelInd) = P.bottom;
+smin(P.levelInd) = min(output.reOut.statePath(:,P.levelInd));
 %smin(P.levelInd) = 10;
 smax(P.levelInd) = P.landHeight;
-smin(P.sbInd) = P.shrBore0;
-smax(P.sbInd) = 1;
+smin(P.sbInd) = min(P.maxShr-.01,P.shrBore0); %allows the general code to work when shrBore is fixed at 1.
+smax(P.sbInd) = P.maxShr;
 
-n = [modelOpts.capNodes modelOpts.heightNodes];
+smin(P.icInd) = 0;
+smax(P.icInd) = P.investCostBase;
+
+n = [modelOpts.capNodes modelOpts.heightNodes modelOpts.icNodes];
 fspace = fundefn('lin',n,smin,smax);
 minHeightDug = P.landHeight - P.maxDepthDug;
-%Add a dense grid of points close to maxDepthDug
-% heightBreaks = fspace.parms{P.levelInd}{1};
-% fspace.parms{P.levelInd}{1} = unique(sort([heightBreaks; (minHeightDug-1:.1:minHeightDug+1)']));
-% fspace.parms{P.levelInd}{2} = 0;
-% fspace.n(P.levelInd) = length(fspace.parms{P.levelInd}{1});
+
+%Make sure there are nodes at maxDepthDug and the point where limits kick in dugWells
+if P.landHeight-smin(P.levelInd)>P.maxDepthDug
+    heightBreaks = fspace.parms{P.levelInd}{1};
+    fspace.parms{P.levelInd}{1} = unique(sort([heightBreaks; P.maxDepthDug; P.landHeight-P.liftFullD]));
+    fspace.parms{P.levelInd}{2} = 0;
+    fspace.n(P.levelInd) = length(fspace.parms{P.levelInd}{1});
+end
 % 
 % %Add a dense grid of points near begining and end of investment intervals
 % capBreaks = fspace.parms{P.sbInd}{1};
@@ -39,30 +79,37 @@ minHeightDug = P.landHeight - P.maxDepthDug;
 snodes = funnode(fspace);
 s = gridmake(snodes);
 
-%make guess at the optimal actions
-lifts = P.landHeight - s(:,P.levelInd);
-costBore = P.electricityBore*lifts;
-costDug = P.electricityDug*lifts;
+if exist(['solGuess' solveType '.mat'],'file')
+    disp('loading old guess for opt control')
+    load(['solGuess' solveType])
+    vGuess = funeval(vGuessC,fspaceGuess,s);
+    for ii=1:size(xGuessC,2)
+        xGuess(:,ii) = funeval(xGuessC(:,ii),fspaceGuess,s);
+    end
+    if strfind(solveType,'niP')
+        xGuess(:,P.investInd) = 0;
+    end
+else
+    disp('generating new guess for opt control')
+    %make guess at the optimal actions
+    lifts = P.landHeight - s(:,P.levelInd);
+    costBore = P.electricityBore*lifts;
+    costDug = P.electricityDug*lifts;
 
-states = length(s);
-[lb,ub] = feval(model.func,'b',s,ones(states,3),[],P);
+    states = length(s);
+    [lb,ub] = feval(model.func,'b',s,ones(states,3),[],P);
 
-xGuess(:,P.gwDugInd) = max((P.idDugInt - costDug)./P.idDugSlope,0);
-xGuess(:,P.gwBoreInd) = max((P.idBoreInt - costBore)./P.idBoreSlope,0);
+    xGuess(:,P.gwDugInd) = max((P.idDugInt - costDug)./P.idDugSlope,0);
+    xGuess(:,P.gwBoreInd) = max((P.idBoreInt - costBore)./P.idBoreSlope,0);
 
-nb = netBen(xGuess(:,P.gwDugInd),xGuess(:,P.gwBoreInd),xGuess(:,P.investInd),s(:,P.levelInd),s(:,P.sbInd),P);
-deltaBen = nb.bore - nb.dug;
-newShr = max(s(:,P.sbInd),normcdf(deltaBen*P.discount/(1-P.discount),P.investCostMean,P.investCostSD));
-xGuess(:,P.investInd) = newShr-s(:,P.sbInd);
+    nb = netBen(xGuess(:,P.gwDugInd),xGuess(:,P.gwBoreInd),xGuess(:,P.investInd),s(:,P.levelInd),s(:,P.sbInd),s(:,P.icInd),P);
+    deltaBen = nb.bore - nb.dug;
+    newShr = max(s(:,P.sbInd),normcdf(deltaBen*P.discount/(1-P.discount),P.investCostMean,P.investCostSD));
+    xGuess(:,P.investInd) = newShr-s(:,P.sbInd);
 
-xGuess = max(lb,min(xGuess,ub));
-if isfield(model,'horizon'); finite = 1; else, finite = 0; end
-
-vGuess = feval(model.func,'f',s,xGuess,[],P)/(1-P.discount);
-if ~finite
-    %xGuess = .9*xGuess;
-    %xGuess(:,P.investInd) = min(.5*ub(:,P.investInd),newShr-s(:,P.sbInd));
-end    
+    xGuess = max(lb,min(xGuess,ub));
+    vGuess = feval(model.func,'f',s,xGuess,[],P)/(1-P.discount);
+end
 
 optset('dpsolve','algorithm',modelOpts.algorithm);
 optset('dpsolve','maxit',modelOpts.maxit);
@@ -78,10 +125,25 @@ optset('dpsolve_vmax','lcpmethod','minmax');
 %[c,scoord,v,x] = dpsolve(model,fspace,s,vGuess,xGuess);
 
 output.opt.converged = exf;
+if output.opt.converged == 1
+    %save approximated fcns for value and action
+    clear vGuessC xGuessC fspaceGuess
+    vGuessC = c;
+    fspaceGuess = fspace;
+    dx = size(xGuess,2);
+    xLong = reshape(x,numel(c),dx);
+    for ii=1:dx
+        xGuessC(:,ii) = funfitxy(fspace,funbasx(fspace,s),xLong(:,ii));
+    end
+    
+    %save the solution to use as a starting point next time
+    save(['solGuess' solveType],'vGuessC','xGuessC','fspaceGuess')
+end
 
 [shares,levels] = ndgrid(scoord{P.sbInd},scoord{P.levelInd});
 s0(P.sbInd) = P.shrBore0;
 s0(P.levelInd) = P.h0;
+s0(P.icInd) = P.investCostBase;
 [ssim,xsim] = dpsimul(model,s0,modelOpts.minT,scoord,x);
 close
 
@@ -89,35 +151,18 @@ output.opt.vFunc = v;
 output.opt.val = funeval(c,fspace,s0);
 output.opt.statePath = squeeze(ssim)';
 output.opt.controlPath = squeeze(xsim)';
-optNb = netBen(output.opt.controlPath(:,P.gwDugInd),output.opt.controlPath(:,P.gwBoreInd),output.opt.controlPath(:,P.investInd),output.opt.statePath(:,P.levelInd),output.opt.statePath(:,P.sbInd),P);
+optNb = netBen(output.opt.controlPath(:,P.gwDugInd),output.opt.controlPath(:,P.gwBoreInd),output.opt.controlPath(:,P.investInd),output.opt.statePath(:,P.levelInd),output.opt.statePath(:,P.sbInd),output.opt.statePath(:,P.icInd),P);
 output.opt.valPath = [optNb.dug optNb.bore optNb.all];
 output.opt.optVal = (P.discount.^(0:length(output.opt.valPath)-1))*output.opt.valPath(:,3);
-%extract and store necessary optimal management output
 
-% save beforeAe
-% % solve the adaptive expectations management problem
-% output.aeOut = aeSolve(P,modelOpts);
-% output.aeOut.pgain = (output.opt.val - output.aeOut.aeVal)/output.aeOut.aeVal;
-% 
-% if ~isfield(modelOpts,'figureVisible')
-%     modelOpts.figureVisible = 'off';
-% end
-% 
+output.reOut.pgain = (output.opt.val - output.reOut.reVal)/output.reOut.reVal;
+
 %figure('Visible',modelOpts.figureVisible)
 xTitles = {'Investment','(Traditional)','(Modern)'};
 sTitles = {'Share in Modern Agriculture','Pumping Lift'};
 sYlabel = {'%','meters'};
 % 
- save beforeRe
-% % solve the "rational" expectations management problem
-%  output.reOut = reSolve(P,modelOpts,output.aeOut.statePath(:,2));
-%  output.reOut.pgain = (output.opt.val - output.reOut.reVal)/output.reOut.reVal;
-
- output.reOut = reSolve(P,modelOpts,output.opt.statePath);
- %output.reOut = reSolve(P,modelOpts,P.h0*ones(100,1));
- output.reOut.pgain = (output.opt.val - output.reOut.reVal)/output.reOut.reVal;
-
- yrs = min([length(output.reOut.controlPath) length(output.opt.controlPath)]);
+yrs = min([length(output.reOut.controlPath) length(output.opt.controlPath)]);
 
  byFarmFig = figure();
  for ii=2:3; 
@@ -160,8 +205,6 @@ hold on;
 plot(output.reOut.valPath(1:yrs,3),'-.'); 
 plot(output.opt.valPath(1:yrs,3)); 
 title('Total Current Value');
-
-%% compare outputs and return key results
 
 %% store details for later reference if needed
 if ~exist('detailedOutput','dir')

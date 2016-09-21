@@ -1,4 +1,4 @@
-function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,indInvestCostFrac,P)
+function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,invCostC,P)
     %this function returns the aggregate net benefit as a function of gw
     %extraction (which now needs to be a two dimensional vector),
     %investment in regime switching, gwLevels, and the current share of
@@ -16,11 +16,11 @@ function [nb,dnb,ddnb] = netBen(gwDug,gwBore,invest,gwLevel,shrBore,indInvestCos
     %compute cost per unit for dug wells
     costDug = P.electricityDug*lift;
     costBore = P.electricityBore*lift;
-    newShr = invest + shrBore;
+    newShr = max(0,min(1,invest + shrBore));
     
 
 lowCost = norminv(shrBore*P.inTruncProb + P.probBelow,P.investCostMean,P.investCostSD);
-highCost = norminv(min(newShr*P.inTruncProb  + P.probBelow,1),P.investCostMean,P.investCostSD);
+highCost = max(-1/eps,min(1/eps,norminv(min(newShr*P.inTruncProb  + P.probBelow,1),P.investCostMean,P.investCostSD)));
 
 aboveMaxInds = find(highCost>P.maxInvestCost); 
 highCost(aboveMaxInds) = P.maxInvestCost;
@@ -33,8 +33,7 @@ ddinvestCost_ddinvest = P.inTruncProb./normpdf(highCost,P.investCostMean,P.inves
 	nbDug = P.idDugInt*gwDug - P.idDugSlope/2*gwDug.^2 - costDug.*gwDug;
     nbBore = P.idBoreInt*gwBore - P.idBoreSlope/2*gwBore.^2 - costBore.*gwBore;
     
-    nb.all = nbDug.*(1-shrBore) + nbBore.*shrBore - investCost - P.investCostPenalty*invest.^2;
-    %nb.all = nb.all - extraIC*invest;
+    nb.all = nbDug.*(1-shrBore) + nbBore.*shrBore - investCost - P.investCostPenalty*invest.^2 - invest.*invCostC;
     nb.dug = nbDug;
     nb.bore = nbBore;
     
@@ -42,10 +41,13 @@ ddinvestCost_ddinvest = P.inTruncProb./normpdf(highCost,P.investCostMean,P.inves
         keyboard;
     end
     
+    
    	dnb.dgwDug = (P.idDugInt-P.idDugSlope.*gwDug-costDug).*(1-shrBore);
     dnb.dgwBore = (P.idBoreInt-P.idBoreSlope.*gwBore-costBore).*shrBore;
-    dnb.di = -dinvestCost_dinvest -2*P.investCostPenalty*invest;
-    %dnb.di = dnb.di - extraIC;
+    dnb.di = -dinvestCost_dinvest -2*P.investCostPenalty*invest - invCostC;
+
+    if any(any(isinf(dnb.di))); keyboard; end
+
     ddnb.ddgwDug = -P.idDugSlope*ones(size(gwLevel)).*(1-shrBore);
     ddnb.ddgwBore = -P.idBoreSlope*ones(size(gwLevel)).*shrBore;
     ddnb.dii = -ddinvestCost_ddinvest - 2*P.investCostPenalty;
