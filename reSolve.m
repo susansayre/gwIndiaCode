@@ -1,225 +1,187 @@
 function reOutput = reSolve(P,modelOpts,initialPath)
 
-% model.func = 'optStoppingFunc';
-% model.discount = P.discount;
-% model.actions = [0;1];
-% model.discretestates = 3;
-% model.e = 0;
-% model.w = 1;
+ model.func = 'cpFunc';
+ model.discount = P.discount;
+ model.actions = (1:P.numTech)'; %convert to tech 1, convert to tech 2, convert to tech 3
+ model.discretestates = [P.ind.tech P.ind.yrInd];
+ model.e = 0; %shock values
+ model.w = 1; %shock probabilities
 
+P.numActions = numel(model.actions);
 npvTol = modelOpts.vtol;
 trendTol = modelOpts.ttol;
 shrTol = modelOpts.stol;
 
-assumedLevelPath = initialPath(1:end-1);
+levelPath = initialPath(1:end-1);
 
 levelPathChange = trendTol*10;
 iter = 0;
 
 cycleCount = 1;
-moveFrac = .1;
-% optset('dpsolve','algorithm','funcit');
-while levelPathChange>trendTol
+moveFrac = .2;
+optset('dpsolve','showiters',0);
+reOutput.converged = 0;
+for iter=1:1000
     
-    if iter>0
-       clear maxPrefer2N maxPrefer2Tom minPrefer2Yest
-    end
+    %solve common property dynamic optimization with level given
+    P.levelPath = levelPath;
+    P.lastYear = numel(levelPath);
+    model.params = {P};
     
-    lift = P.landHeight - assumedLevelPath;
-    costDug = P.electricityDug*lift;
-    costBore = P.electricityBore*lift;
+    fspace = fundefn('spli',modelOpts.icMnodes,0,P.maxICM,3,(1:P.numTech)',[1:length(levelPath)]');
+    scoord = funnode(fspace);
+    snodes = gridmake(scoord);
 
-    maxDugDemand = max(0,(P.idDugInt-costDug)./P.idDugSlope);
-    dugUB = P.dugMax*(1-min(1,max(0,lift-P.liftFullD)/(P.maxDepthDug-P.liftFullD)));
-    gwDug = min(maxDugDemand,dugUB);
-    
-    boreMax = P.boreMax - P.boreLimitDecline*max(0,lift-P.liftFullD); %ift lift is smaller than liftFullD, diff will be negative and we won't change limit
-    gwBore = min(max(0,(P.idBoreInt-costBore)./P.idBoreSlope),boreMax);
+    s0(:,P.ind.icM) = scoord{P.ind.icM};
 
-    nbDug = P.idDugInt*gwDug - P.idDugSlope/2*gwDug.^2 - costDug.*gwDug;
-    nbBore = P.idBoreInt*gwBore - P.idBoreSlope/2*gwBore.^2 - costBore.*gwBore;
-    
-    exponents = (1:length(gwBore))';
-    dFs = P.discount.^exponents;
-    deltaBen = nbBore-nbDug;
- 
-    deltaBenNext = [deltaBen(2:end); deltaBen(end)/(1-P.discount)];
-    npvDeltaBenNext = (P.discount.^(exponents+1)).*deltaBenNext;
-    maxPrefer2Tom = (P.discount*deltaBenNext - (1-P.discount*(1-P.icDecayRate))*P.investCostBase*((1-P.icDecayRate).^exponents))./(1-P.discount);
-    
-    minPrefer2Yest = (P.discount*deltaBen - (1-P.discount*(1-P.icDecayRate))*P.investCostBase*((1-P.icDecayRate).^(exponents-1)))./(1-P.discount);
-
-    maxPrefer2N = Inf + zeros(length(deltaBen),1);
-    for tt=1:length(deltaBen);
-        maxPrefer2N(tt,:) = 1/(P.discount^tt)*sum(npvDeltaBenNext(tt:end))-((1-P.icDecayRate)^tt)*P.investCostBase;
-    end
-
-    maxCostInvestNow = min(maxPrefer2Tom,maxPrefer2N); %if my cost is above this, I should either invest tomorrow or never
-    minCostInvestNow = minPrefer2Yest;
-    doubleIntervals = 1;
-    while doubleIntervals>0
-        %identify intervals that are possibly optimal for investment for some
-        %farms
-        possibleInvestIntervals = find(minCostInvestNow<maxCostInvestNow);
-        
-        %check whether the high and mid cost values for each interval are also
-        %in another interval (note that the low cost value for each interval is
-        %the high cost value for the previous interval by definition)
-
-        maxVals = maxCostInvestNow(possibleInvestIntervals);
-        minVals = minCostInvestNow(possibleInvestIntervals);
-        maxValsMat = repmat(maxVals,1,length(maxVals));
-        minValsMat = repmat(minVals,1,length(maxVals));
-
-        inIntervals = (maxValsMat'<=maxValsMat).*(maxValsMat'>minValsMat);
-        problemCosts = find(sum(inIntervals)>1);
-        doubleIntervals = numel(problemCosts);
-        
-        for ci=1:numel(problemCosts)
-            %keyboard
-            chkIntervals = find(inIntervals(:,problemCosts(ci)));
-            time1 = possibleInvestIntervals(problemCosts(ci));
-            maxPreferNow  = maxCostInvestNow(time1);     
-            minPreferNow = minCostInvestNow(time1);
-            for ti=1:numel(chkIntervals)
-                time2 = possibleInvestIntervals(chkIntervals(ti));
-                if time1>time2
-                    minPreferNow = max(minPreferNow,(sum(dFs(time2+1:time1).*deltaBen(time2+1:time1)) - P.investCostBase*((P.discount*(1-P.icDecayRate))^time2 - (P.discount*(1-P.icDecayRate))^time1))/(P.discount^time2 - P.discount^time1));
-                    maxCostInvestNow(time2) = min(maxCostInvestNow(time2),minPreferNow);
-                elseif time1==time2
-                    continue
-                else
-                    maxPreferNow = min(maxPreferNow,(sum(dFs(time1+1:time2).*deltaBen(time1+1:time2)) - P.investCostBase*((P.discount*(1-P.icDecayRate))^time1 - (P.discount*(1-P.icDecayRate))^time2))/(P.discount^time1 - P.discount^time2));
-                    minCostInvestNow(time2) = maxPreferNow;
-                end
-            end
-            maxCostInvestNow(time1)= maxPreferNow;
-            minCostInvestNow(time1) = minPreferNow; 
+    tech0 = find(P.initShares);
+    if numel(tech0)>1
+        ub = 1;
+        for ii=1:numel(tech0)
+            lb = ub-P.initShares(tech0(ii));
+            pickThese = intersect(find((1:modelOpts.icMnodes)./modelOpts.icMnodes>=lb),find((1:modelOpts.icMnodes)./modelOpts.icMnodes<=ub));
+            s0(pickThese,P.ind.tech) = tech0(ii);
+            ub = lb;
         end
+    else
+        s0(:,P.ind.tech) = tech0;
     end
+    s0(:,P.ind.yrInd) = 1;
+    
+    if P.maxInvest
+        %investment is allowed so we have to solve dynamic optimization and simulate forward
+        vGuess = waterLimit(P.landHeight - levelPath(snodes(:,P.ind.yrInd)),P,snodes(:,P.ind.tech));
+        [c,s,v,x] = dpsolve(model,fspace,snodes,vGuess);
+        [ssim,xsim] = dpsimul(model,s0,P.lastYear-1,s,x);
+
+        for ii=1:P.numTech
+            sharePath(:,ii) = sum(squeeze(ssim(:,P.ind.tech,:)==ii))/length(s0);
+        end
+    else
+        %no investment is allowed so we want to generate "simulation" results that match this outcome
+        x = snodes(:,P.ind.tech);
+        ssim(:,P.ind.icM,:) = repmat(s0(:,P.ind.icM),1,P.lastYear);
+        ssim(:,P.ind.tech,:) = 1;
+        ssim(:,P.ind.yrInd,:) = repmat(1:P.lastYear,size(ssim,1),1);
+        xsim = repmat(s0(:,P.ind.tech),[1 1 P.lastYear]);   
+        
+        sharePath = repmat(P.initShares,P.lastYear,1);
+    end
+    levelPath = levelPath(1);
+    for tt=1:P.lastYear
+        lift = P.landHeight - levelPath(tt);
+
+        wCosts = P.eCostShr*lift*P.eCosts; %ns x ntech
+
+        maxWaters = waterLimit(lift,P);
+
+        wCosts = P.eCostShr*lift*P.eCosts; %ns x ntech
+    
+        water(tt,:) = min(maxWaters,max((P.idInts - wCosts)./P.idSlopes,0));
             
-    %simulate the consequences of the implied behavior above
-    %keyboard
-    levelPath = P.h0;
-    shrPath = P.shrBore0;
-    invCostC = P.investCostBase*(1-P.icDecayRate); %for consistency with later code
-    t=1;
-    npvChange = 10*npvTol;
-    investPath = [];
-    valPath = [];
-    while npvChange>npvTol || t<modelOpts.minT%continues simulating forward until the NPV contribution is negligible
-        lowCost = norminv(shrPath(t)*P.inTruncProb+P.probBelow,P.investCostMean,P.investCostSD);     
-        if t<=length(gwBore)
-           %the max operator will guarantee that we don't want to de-invest if I've already invested but wouldn't want to now
-           %the min operator deals with the truncation in the investCost distribution
-           if maxCostInvestNow(t)<=minCostInvestNow(t)
-               highCost = lowCost;
-           else
-               highCost = min(max(lowCost,maxCostInvestNow(t)),P.maxInvestCost);
-           end
-%            if t>1 && lowCost>minCostInvestNow(t)
-%              keyboard
-%            end
-            %recompute use based on current depth
-            thisLift = P.landHeight - levelPath(t);
-            thisCostDug = P.electricityDug*thisLift;
-            thisCostBore = P.electricityBore*thisLift;
-
-            thisMaxDugDemand = max(0,(P.idDugInt-thisCostDug)./P.idDugSlope);
-            thisDugUB = P.dugMax*(1-min(1,max(0,thisLift-P.liftFullD)/(P.maxDepthDug-P.liftFullD)));
-            thisGwDug = min(thisMaxDugDemand,thisDugUB);
-    
-            thisBoreMax = P.boreMax - P.boreLimitDecline*max(0,thisLift-P.liftFullD); %ift lift is smaller than liftFullD, diff will be negative and we won't change limit
-            thisGwBore = min(max(0,(P.idBoreInt-thisCostBore)./P.idBoreSlope),thisBoreMax);
-
-            thisNbDug = P.idDugInt*thisGwDug - P.idDugSlope/2*thisGwDug.^2 - thisCostDug.*thisGwDug;
-            thisNbBore = P.idBoreInt*thisGwBore - P.idBoreSlope/2*thisGwBore.^2 - thisCostBore.*thisGwBore;
-
-       else
-            %I've hit the end of my data, keep levels (and therefore net benefits) constant at their last levels and
-            %prevent investment going forward, the next iteration will proceed this far if we need it and see how
-            %people respond to the actual levels induced by this behavior
-            gwBore(t) = gwBore(end);
-            gwDug(t) = gwDug(end);
-            nbDug(t) = nbDug(end);
-            nbBore(t) = nbBore(end);
-            assumedLevelPath(t) = assumedLevelPath(end);
-            highCost = lowCost;
+        gw(tt,:) = sharePath(tt,:)*water(tt,:)';
+        
+        if tt<P.lastYear
+            levelPath(tt+1,:) = updateLevels(levelPath(tt),gw(tt),P);
         end
-        gwTot = shrPath(t)*thisGwBore + (1-shrPath(t))*thisGwDug;
-        levelPath(t+1,:) = updateLevels(levelPath(t),gwTot,P);
-        invCostC(t+1,:) = invCostC(t)*(1-P.icDecayRate);
-        if highCost == lowCost; %doing it this way prevents weird rounding problems
-            shrPath(t+1,:) = shrPath(t,:);
-        else
-            shrPath(t+1,:) = 1/P.inTruncProb*(normcdf(highCost,P.investCostMean,P.investCostSD)-P.probBelow);
-        end
-        investPath(t,:) = shrPath(t+1)-shrPath(t);
-        if investPath(t,:)>P.investLimit
-            investPath(t,:) = P.investLimit;
-            shrPath(t+1,:) = shrPath(t,:) + investPath(t,:);
-            highCost = norminv(shrPath(t+1,:)*P.inTruncProb+P.probBelow,P.investCostMean,P.investCostSD);
-        end
-        if investPath(end)<0
-            keyboard
-        end
-        investCost(t) = 1/P.inTruncProb*(P.investCostSD^2*(normpdf(lowCost,P.investCostMean,P.investCostSD)-normpdf(highCost,P.investCostMean,P.investCostSD))+P.investCostMean*investPath(t)) + investPath(t)*invCostC(t);
-        valPath(t,:) = [thisNbDug thisNbBore shrPath(t)*thisNbBore + (1-shrPath(t))*thisNbDug - investCost(t)];
-        npvChange = abs((P.discount^t)*valPath(t,3));
-        t = t+1;
     end
+     
+    levelPathChange = max(abs(P.levelPath-levelPath));
     
-    levelPathChange = max(abs(assumedLevelPath(1:t-1)-levelPath(1:t-1)));
-    cycleCount = cycleCount+1;
-    if cycleCount>100
-        moveFrac = moveFrac/2;
-        cycleCount = 1;
-    end
-
-     fprintf ('%4i %10.1e\n',iter,levelPathChange)
+    fprintf ('%4i %10.1e\n',iter,levelPathChange)
 %     figure()
 %     plot(levelPath)
 %     hold on;
-%     plot(assumedLevelPath,'--')
+%     plot(P.levelPath,'--')
 %     pause(.001)
-%     close
     
-    assumedLevelPath = (1-moveFrac)*assumedLevelPath(1:t-1) + moveFrac*levelPath(1:t-1); 
+    levelPath = (1-moveFrac)*P.levelPath + moveFrac*levelPath; 
+    
+    if levelPathChange<trendTol
+        reOutput.converged = 1;
+        break;
+    end
     iter = iter+1;
     %keyboard
-
-end
-
-%check optimal path is globally, not locally optimal
-investIntervals = find(investPath>0);
-lowCost = norminv(shrPath(investIntervals),P.investCostMean,P.investCostSD);
-highCost = norminv(shrPath(investIntervals+1),P.investCostMean,P.investCostSD);
-midCost = (lowCost + highCost)/2;
-dFs = P.discount.^(1:length(nbDug))';
-
-for ti=1:t-1
-    npvInvestCommon(ti,:) = sum(dFs(1:ti).*nbDug(1:ti)) - dFs(ti)*invCostC(ti) + sum(dFs(ti+1:end).*nbBore(ti+1:end)) + dFs(end)*P.discount/(1-P.discount)*nbBore(end);
-end
-npvInvestCommon(t,:) = sum(dFs.*nbDug) + dFs(end)*nbDug(end)*P.discount/(1-P.discount);
-dFHat = [dFs(1:t-1); 0];
-for jj=1:numel(investIntervals);
-    npvInvestLow(:,jj) = npvInvestCommon - dFHat*lowCost(jj);
-    npvInvestHigh(:,jj) = npvInvestCommon - dFHat*highCost(jj);
-    npvInvestMid(:,jj) = npvInvestCommon - dFHat*midCost(jj);
-end
-
-if any(investIntervals)
-    [maxValMid,maxYrMid] = max(npvInvestMid);
-    [maxValHigh,maxYrHigh] = max(npvInvestHigh);
-    [maxValLow,maxYrLow] = max(npvInvestLow);
-
-    if any(maxYrMid-investIntervals')
-        keyboard
+    close
+    
+    cycleCount = cycleCount +1;
+    if cycleCount>50
+        moveFrac = moveFrac/2;
+        cycleCount = 1;
     end
+    
+%    if iter>1000; keyboard; end
 end
-controlLength = length(investPath);
-reOutput.statePath = [shrPath levelPath];
-reOutput.controlPath = [investPath gwDug(1:controlLength) gwBore(1:controlLength)];
-reOutput.valPath = valPath;
-reOutput.reVal = (P.discount.^(0:length(valPath)-1))*valPath(:,3);
 
+%trace benefits and costs over time for each farm
+yrs = size(ssim,3); farms = size(ssim,1);
+ssimLong = reshape(permute(ssim,[1 3 2]),yrs*farms,3);
+xsimLong = reshape(permute(xsim,[1 3 2]),yrs*farms,1);
+valPaths = reshape(cpFunc('f',ssimLong,xsimLong,[],P),farms,yrs);
+npvs = sum(valPaths.*repmat(P.discount.^(0:1:yrs-1),farms,1),2);
+valPriv = mean(valPaths)';
+npvPriv = mean(npvs);
+%generate states and actions that can be used to call optFunc to generate
+%social costs and benefits
+
+sharesRaw = share2RawShr(sharePath);
+
+sPath(:,P.ind.level) = levelPath;
+sPath(:,P.shareInds) = sharesRaw;
+moveShr = zeros(P.numTech,P.numTech-1,yrs);
+    
+investShr = moveShr;
+for ii=1:P.numTech
+    posShrs = find(sharePath(:,ii));
+    for jj=1:P.numTech-1
+        moveShr(ii,jj,posShrs) = sum(squeeze(ssim(:,P.ind.tech,posShrs)==ii).*(xsim(:,posShrs)==jj))'./(farms*sharePath(posShrs,ii));
+        if jj==1
+            denominator = ones(numel(posShrs),1);
+            doThese = posShrs;
+        else
+            denominator = squeeze(prod(1 - investShr(ii,1:jj-1,posShrs),2));
+            doThese = posShrs(find(denominator));
+        end
+        investShr(ii,jj,doThese) = squeeze(moveShr(ii,jj,doThese))./denominator(find(denominator));
+    end
+end 
+investPath = reshape(permute(investShr,[3 2 1]),yrs,P.numTech*(P.numTech-1));
+
+xPath(:,P.ind.water) = water;
+xPath(:,P.ind.invest) = investPath;
+
+reOutput.statePath = sPath;
+reOutput.controlPath = xPath;
+reOutput.sharePath = sharePath;
+reOutput.levelPath = levelPath;
+reOutput.waterPath = water;
+
+[nbS,nbDetailS,farmDetailS] = optValue(sPath,xPath,[],P,'society');
+[nbI,nbDetailI,farmDetailI] = optValue(sPath,xPath,[],P,'indiv');
+reOutput.nbPath = [nbS nbI];
+reOutput.nbDetailPath = [nbDetailS nbDetailI];
+reOutput.farmDetailS = farmDetailS;
+reOutput.farmDetailI = farmDetailI;
+reOutput.npv = P.discount.^(0:length(reOutput.nbPath)-1)*reOutput.nbPath;
+
+%check for consistency
+% [a,b] = sort(xsim,1,'descend'); %identifies which farms are selecting which technologies. Our assumptions imply the cheapest farms should be the ones in tech 3, mid in tech 2, and highest in tech1
+% orderSwitches = find(b-repmat((1:size(b,1))',1,size(b,2)));
+% if any(orderSwitches)
+%     warning('The technology and cost order is not remaining constant')
+% end
+
+%plot policy functions
+myStates.icM = snodes(:,P.ind.icM);
+myStates.tech = snodes(:,P.ind.tech);
+myStates.lift = P.h0 - levelPath(snodes(:,P.ind.yrInd));
+myStates.choice = reshape(x,size(myStates.icM));
+choicePlot = gramm('x',myStates.lift,'y',myStates.icM,'color',myStates.choice);
+choicePlot.geom_point();
+choicePlot.facet_grid(myStates.tech,[]);
+choicePlot.set_names('x','water level','y','cost','color','choice','row','current tech');
+choicePlot.set_color_options('map','brewer1');
+choicePlot.set_point_options('base_size',10);
+
+reOutput.choicePlot = choicePlot;

@@ -1,105 +1,57 @@
 function [out1,out2,out3] = optFunc(flag,s,x,e,P)
-	gwLevels = s(:,P.levelInd);
-    if any(gwLevels<P.bottom); keyboard; end;
-	shrBore = s(:,P.sbInd);
-    invCostC = s(:,P.icInd);
-	investmentAmts = x(:,P.investInd);
-	gwDug = max(0,x(:,P.gwDugInd));
-    gwBore = max(0,x(:,P.gwBoreInd));
-    
-    %if any(x<0); keyboard; end;
-	
-    if any(e)
-        error('This function can''t handle shocks')
-    end
-    
-    ns = size(s,1);
-    ds = size(s,2);
-    dx = size(x,2);
-    
+  
 	switch flag
 	
 		case 'b'
+            ns = size(s,1);
+            lifts = P.landHeight - s(:,P.ind.level); %ns x 1
             %return upper and lower bounds on the control variables
-            out1 = zeros(ns,dx); %lower bounds on all variables are 0;
-            out2 = zeros(ns,dx);
-            lift = P.landHeight-gwLevels;
-            out2(:,P.gwDugInd) = P.dugMax*(1-min(1,max(0,lift-P.liftFullD)/(P.maxDepthDug-P.liftFullD)));
-            boreMax = P.boreMax - P.boreLimitDecline*max(0,lift-P.liftFullD); %ift lift is smaller than liftFullD, diff will be negative and we won't change limit
-            out2(:,P.gwBoreInd) = min(boreMax,(gwLevels-P.bottom)./max(eps,shrBore)*P.AS); %our problems are currently parameterized so that only the bore wells will be active when we near the aquifer bottom
-            out2(:,P.investInd) = min(P.investLimit,(P.maxShr-s(:,P.sbInd)));  %this implies converting all of the additional parcels
+            out1 = zeros(ns,P.numTech^2); %lower bounds on all variables are 0;
+            maxWater = waterLimit(lifts,P);
             
-            if any(find(out2<out1))
+            shares = rawShr2Share(s(:,P.shareInds));
+            maxWater(shares==0) = 0;
+            
+            out2(:,P.ind.water) = maxWater;
+            if P.maxInvest==0
+                investLimits = eye(P.numTech);
+                maxInvest = repmat(reshape(investLimits(:,1:P.numTech-1),1,P.numTech*(P.numTech-1)),ns,1);
+            elseif P.maxInvest==1
+                maxInvest = P.maxInvest*ones(ns,P.numTech*(P.numTech-1));
+            else
                 keyboard
             end
+            
+            for ii=1:P.numTech
+                maxInvest(shares(:,ii)==0,(ii-1)*(P.numTech-1)+1:ii*(P.numTech-1)) = 0; %if there aren't any farms with a technology don't allow any movement from that technology
+            end
+            out2(:,P.ind.invest) = maxInvest;
+
 
    		case 'f'
-            %return net benefits
-			[b, dnb, ddnb] = netBen(gwDug,gwBore,investmentAmts,gwLevels,shrBore,invCostC,P);
-%             
-%             deltaGW = 1e-4;
-%             deltaInvest = 1e-6;
-%             %check derivatives;
-%             b2GWDug = netBen(gwDug+deltaGW,gwBore,investmentAmts,gwLevels,shrBore,P);
-%             est_dbgwDug = (b2GWDug.all-b.all)/deltaGW;
-% 
-%             b2GWBore = netBen(gwDug,gwBore+deltaGW,investmentAmts,gwLevels,shrBore,P);
-%             est_dbgwBore = (b2GWBore.all-b.all)/deltaGW;
-% 
-%             b2Invest = netBen(gwDug,gwBore,investmentAmts+deltaInvest,gwLevels,shrBore,P);
-%             est_dbInvest = (b2Invest.all-b.all)/deltaInvest;
-%            
-% keyboard
-            out1 = b.all;
-            out2(:,P.investInd) = dnb.di;
-            out2(:,P.gwDugInd) = dnb.dgwDug;
-            out2(:,P.gwBoreInd) = dnb.dgwBore;
-            
-            if any(isnan(out2)); keyboard; end;
-            out2 = max(-1e5,min(out2,1e5));
-            
-            out3(:,P.investInd,P.investInd)=ddnb.dii;
-            out3(:,P.investInd,P.gwDugInd) = ddnb.dgwDugdi;
-            out3(:,P.investInd,P.gwBoreInd) = ddnb.dgwBoredi;
-            
-            out3(:,P.gwDugInd,P.gwDugInd) = ddnb.ddgwDug;
-            out3(:,P.gwDugInd,P.gwBoreInd) = ddnb.dgwDugdgwBore;
-            out3(:,P.gwDugInd,P.investInd) = ddnb.dgwDugdi;
-            
-            out3(:,P.gwBoreInd,P.gwBoreInd) = ddnb.ddgwBore;
-            out3(:,P.gwBoreInd,P.gwDugInd) = ddnb.dgwDugdgwBore;
-            out3(:,P.gwBoreInd,P.investInd) = ddnb.dgwBoredi;
+            out1 = optValue(s,x,e,P);
+            if nargout > 1
+                out2 = fd(s,x,e,P,'optValue');
+            end
+            if nargout > 2
+                out3 = fd(s,x,e,P,'optValue','fd');
+            end
             
         case 'g'
-            %return updated states
-            gwExtractionAmts = gwDug.*(1-shrBore) + gwBore.*shrBore;
-			[g,dg,dgg] = updateLevels(gwLevels,gwExtractionAmts,P);
-			out1(:,P.sbInd) = shrBore+investmentAmts;
-            out1(:,P.levelInd) = g;
-            out1(:,P.icInd) = (1-P.icDecayRate).*invCostC;
-            
-            %return derivatives of next period states with respect to actions
-            out2(:,P.sbInd,P.investInd) = ones(ns,1); 
-            out2(:,P.sbInd,P.gwDugInd)= zeros(ns,1); %extraction doesn't affect capital
-            out2(:,P.sbInd,P.gwBoreInd)= zeros(ns,1); %extraction doesn't affect capital
-
-            out2(:,P.levelInd,P.gwDugInd) = dg.*(1-shrBore);
-            out2(:,P.levelInd,P.gwBoreInd) = dg.*shrBore;
-            out2(:,P.levelInd,P.investInd) = zeros(ns,1); %investment doesn't affect levels directly
-
-            %since the extra investment cost declines exogenously, no
-            %actions affect this level
-            out2(:,P.icInd,P.investInd) = zeros(ns,1);
-            out2(:,P.icInd,P.gwDugInd)= zeros(ns,1); 
-            out2(:,P.icInd,P.gwBoreInd)= zeros(ns,1); 
-			
-            %return second derivatives of next period states with respect to actions
-            out3 = zeros(ns,ds,dx,dx); %initialize to zero and add only as needed
-            if any(dgg)
-                error('have nto coded placement of second derivatives for gw levels')
+            %return updated state
+            out1 = optState(s,x,e,P);
+            if nargout > 1
+                out2 = fd(s,x,e,P,'optState');
             end
-    end
+            if nargout > 2
+                out3 = fd(s,x,e,P,'optState','fd');
+            end
+	end
 	
     if any(isnan(out1))
-        keyboard
+		if P.interactive
+			keyboard
+		else
+			disp('Returning nans in optFunc')
+		end
     end
